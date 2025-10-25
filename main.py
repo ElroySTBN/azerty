@@ -17,6 +17,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('telegram').setLevel(logging.WARNING)
+
 def run_flask_app():
     """Lance l'application Flask dans un thread séparé"""
     app = create_app()
@@ -36,11 +39,9 @@ async def main():
     WORKER_BOT_TOKEN = os.getenv('WORKER_BOT_TOKEN')
     
     if not CLIENT_BOT_TOKEN or not WORKER_BOT_TOKEN:
-        logger.error("❌ ERREUR: Les tokens des bots ne sont pas configurés dans .env")
-        logger.info("\nVeuillez créer un fichier .env avec :")
-        logger.info("CLIENT_BOT_TOKEN=votre_token_bot_client")
-        logger.info("WORKER_BOT_TOKEN=votre_token_bot_worker")
-        logger.info("ADMIN_PASSWORD=votre_mot_de_passe")
+        logger.error("❌ ERREUR: Les tokens des bots ne sont pas configurés")
+        logger.info("\nVeuillez configurer les secrets suivants :")
+        logger.info("CLIENT_BOT_TOKEN, WORKER_BOT_TOKEN, ADMIN_PASSWORD")
         logger.info("\nVous pouvez obtenir les tokens sur https://t.me/BotFather")
         return
     
@@ -56,18 +57,23 @@ async def main():
     logger.info("\n" + "="*50)
     logger.info("📊 Dashboard Admin: http://0.0.0.0:5000")
     logger.info("   Username: admin")
-    logger.info(f"   Password: {os.getenv('ADMIN_PASSWORD', 'admin123')}")
+    logger.info("   Password: (configuré dans les secrets)")
     logger.info("="*50 + "\n")
     
     async with client_app, worker_app:
         await client_app.start()
-        logger.info("✅ Bot Client démarré")
+        await client_app.updater.start_polling()
+        logger.info("✅ Bot Client démarré et en écoute")
         
         await worker_app.start()
-        logger.info("✅ Bot Worker démarré")
+        await worker_app.updater.start_polling()
+        logger.info("✅ Bot Worker démarré et en écoute")
         
         logger.info("\n🎉 Marketplace opérationnelle !")
-        logger.info("Appuyez sur Ctrl+C pour arrêter\n")
+        logger.info("Vous pouvez maintenant :")
+        logger.info("  - Accéder au dashboard admin")
+        logger.info("  - Parler aux bots sur Telegram")
+        logger.info("\nAppuyez sur Ctrl+C pour arrêter\n")
         
         await asyncio.Event().wait()
 
