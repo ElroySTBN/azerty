@@ -1,0 +1,244 @@
+Tu es un expert Python et Telegram bots. Je veux créer un MVP d'une marketplace d’avis et de services en ligne avec 2 bots Telegram + 1 dashboard web admin.
+
+CONTEXTE :
+- MVP pour quelques client test 
+- Budget zéro, hébergé sur Replit
+- Je ne sais pas coder
+- Besoin d'anonymat (pas de données perso stockées)
+
+ARCHITECTURE MVP :
+
+2 BOTS TELEGRAM :
+1. Bot Client  - Pour l'entreprise qui commande
+2. Bot Worker - Pour les exécutants (microworkers rémunérés a la tache)
+
+1 DASHBOARD WEB ADMIN :
+- Interface Flask simple (pas Telegram)
+- Accès protégé par mot de passe
+- Pour gérer commandes et workers facilement, et communiquer facilement les informations aux workers, inspiré du site microworkers, mais en plus sécurisé, et pas libre d’accès. 
+
+STACK TECHNIQUE :
+- Python 3.10
+- python-telegram-bot (async)
+- Flask (dashboard web)
+- SQLite (base de données)
+- Tout doit tourner sur Replit (single process)
+
+════════════════════════════════════════
+
+BOT CLIENT - FONCTIONNALITÉS MVP :
+
+Message de bienvenue :
+```
+🔐 
+
+Service anonyme de gestion de réputation en ligne.
+
+✓ Anonymat total garanti
+✓ Paiement crypto uniquement  
+✓ Aucune donnée personnelle
+
+Votre ID : #C-XXXXX
+
+[📋 Commander des avis]
+[📊 Mes commandes]
+```
+
+Flow commande simplifié et en meme temps bien pensé en matière de copywritting/onboarding :
+Bouton "Commander des avis"
+Menu : "Google Reviews" / "Trustpilot" / "Pages Jaunes »/ «Autre»
+Nombre d’avis
+Proposition de génération du contenu des avis a partir du brief envoyé par l’entreprise, ou bien proposer d’uploader un fichier contenant le contenu des avis, ou bien, proposer de les entrer dans le chat.  calcul du prix automatique
+
+
+════════════════════════════════════════
+
+BOT WORKER - FONCTIONNALITÉS MVP :
+
+Message de bienvenue :
+```
+💰 Gagnez de l'argent en ligne
+
+✓ Tâches simples (3-5 min)
+✓ 0,15-3$ par tâche
+✓ Paiement crypto
+
+[🇫🇷 Français] [🇬🇧 English]
+```
+
+Dashboard worker :
+```
+👤 Profil : WRK-XXXXX
+⭐ Niveau : Bronze
+💰 Solde : 0.00 USDT
+
+[💼 Tâches disponibles (3)]
+[💳 Mes gains]
+```
+
+Liste tâches disponibles :
+```
+🟢 Tâche #TSK-XXXX
+Type : Avis Google
+Rémunération : 5 USDT
+Durée : ~X min
+
+✅ TEXTE FOURNI (copier-coller)
+
+[Voir détails]
+```
+
+Exécution tâche :
+1. Worker clique "Accepter"
+2. Reçoit : - Instructions
+   - Lien Google Maps
+   - Texte exact à copier-coller
+   - Note à mettre (ex: 5/5)
+3. Worker publie et envoie :
+   - Screenshot
+   - Lien de son avis publié
+4. Message : "Preuve reçue ! En attente de validation."
+
+════════════════════════════════════════
+
+DASHBOARD WEB ADMIN - FONCTIONNALITÉS :
+
+Page de login :
+- Username : admin
+- Password : (défini dans .env)
+
+Page principale (après login) :
+
+┌─────────────────────────────────────┐
+│ 📊 DASHBOARD ADMIN                  │
+├─────────────────────────────────────┤
+│ Vue d'ensemble :                    │
+│ • Commandes actives : 2             │
+│ • Workers actifs : 5                │
+│ • Tâches en validation : 3          │
+└─────────────────────────────────────┘
+
+Section 1 : COMMANDES
+Table :
+| Ref | Client | Type | Qty | Statut | Actions |
+|-----|--------|------|-----|--------|---------|
+| CMD-001 | C-7K9P | Google | 10 | Payé | [Gérer] |
+| CMD-002 | C-2M4N | Trust. | 5 | En attente | [Suppr] |
+
+Clic sur [Gérer] d'une commande :
+```
+Commande #CMD-001
+Type : Avis Google
+Quantité : 10 avis
+Client : C-7K9P
+Statut : Payé ✅
+Lien cible : https://maps.google.com/...
+
+Brief client :
+"Restaurant italien, mentionner pâtes maison, ambiance chaleureuse, service rapide. Note moyenne 4.5/5"
+
+Contenu fourni par client : NON
+→ Vous devez rédiger les avis
+
+[✍️ Rédiger manuellement]
+[📤 Import fichier .txt]
+
+--- Si avis déjà générés ---
+Avis générés : 10/10 ✅
+
+Avis #1 : "Excellente découverte ! Les pâtes sont..."  
+[Éditer] [Supprimer]
+
+...
+
+[✅ DISTRIBUER AUX WORKERS] ← Bouton principal
+```
+
+Clic "DISTRIBUER AUX WORKERS" :
+- Crée automatiquement 10 tâches en DB
+- Envoie notification à tous les workers actifs
+- Redirige vers "Tâches en cours"
+
+Section 2 : WORKERS
+Table :
+| ID | Niveau | Note | Tâches | Solde | Statut | Actions |
+|----|--------|------|--------|-------|--------|---------|
+| WRK-001 | Bronze | 5.0 | 3 | 15$ | Actif | [Voir] [Payer] |
+| WRK-002 | Certif | - | 0 | 0$ | En attente | [Valider] [Refuser] |
+
+Section 3 : TÂCHES EN VALIDATION
+Table :
+| Tâche | Worker | Type | Screenshot | Lien | Actions |
+|-------|--------|------|------------|------|---------|
+| TSK-001 | WRK-001 | Google | [Voir img] | [Voir] | [✅ Valider] [❌ Refuser] |
+
+Clic [✅ Valider] :
+- Marque tâche comme "Validée"
+- Ajoute 5$ au solde du worker
+- Envoie notif au worker : "Tâche validée ! +5 USDT"
+- Envoie notif au client : "Avis 1/10 publié ✅"
+
+Section 4 : Générer les avis a la main via le Dashboard (intégré)
+```
+ Génération  d'avis
+
+Commande : CMD-001 (10 avis Google)
+
+Brief :
+[Zone texte avec brief du client]
+
+Ton : [Enthousiaste ▼]
+Note moyenne : [4.5/5 ▼]
+Longueur : [80-120 mots ▼]
+
+
+[✅ Valider et enregistrer]
+```
+
+════════════════════════════════════════
+
+
+
+════════════════════════════════════════
+
+VARIABLES D'ENVIRONNEMENT (.env) :
+```
+# Telegram Bots
+CLIENT_BOT_TOKEN=ton_token_bot_client
+WORKER_BOT_TOKEN=ton_token_bot_worker
+
+# Admin
+ADMIN_TELEGRAM_ID=ton_id_telegram
+ADMIN_PASSWORD=ton_mot_de_passe_dashboard
+
+# Claude API (pour génération avis)
+ANTHROPIC_API_KEY=ta_clé_api_claude
+
+# Flask
+FLASK_SECRET_KEY=une_clé_secrète_aléatoire
+```
+
+COPYWRITING / UX :
+
+Bot Client :
+- Ton professionnel et discret
+- Focus sur ANONYMAT, SÉCURITÉ et avis authentiques
+- Messages courts et clairs
+- Boutons plutôt que commandes texte, dans la limite du possible
+
+Bot Worker :
+- Ton motivant et simple
+- Instructions ultra-détaillées
+- Encouragements après validation
+
+Dashboard Admin :
+- Interface épurée
+- Infos essentielles visibles d'un coup d'œil
+
+══════════════════════════════════════
+
+IMPORTANT :
+- Code COMPLET, pas de placeholders
+- Teste que ça tourne sur Replit
+- Fournis des exemples de données de test
+- Explique chaque partie importante dans les commentaires
