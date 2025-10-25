@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screenshot {{ task.task_id }} - Marketplace</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="header">
+        <h1>📸 Screenshot - Tâche {{ task.task_id }}</h1>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">« Retour au dashboard</a>
+    </div>
+    
+    <div class="container">
+        <div class="screenshot-container">
+            <h3>Preuve soumise par le worker</h3>
+            <p><strong>Worker :</strong> {{ task.worker_id }}</p>
+            <p><strong>Lien de l'avis :</strong> <a href="{{ task.proof_link }}" target="_blank">{{ task.proof_link }}</a></p>
+            
+            <div class="screenshot-image">
+                <img src="/{{ task.proof_screenshot }}" alt="Screenshot de la tâche">
+            </div>
+            
+            <div class="action-buttons">
+                <form method="POST" action="{{ url_for('validate_task_route', task_id=task.task_id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-success">✅ Valider</button>
+                </form>
+                <form method="POST" action="{{ url_for('reject_task_route', task_id=task.task_id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">❌ Refuser</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

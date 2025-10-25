@@ -1,6 +1,80 @@
-def main():
-    print("Hello from repl-nix-workspace!")
+import os
+import asyncio
+import logging
+from threading import Thread
+from dotenv import load_dotenv
 
+from src.database import init_database
+from src.client_bot import setup_client_bot
+from src.worker_bot import setup_worker_bot
+from src.web_admin import create_app
 
-if __name__ == "__main__":
-    main()
+load_dotenv()
+
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+def run_flask_app():
+    """Lance l'application Flask dans un thread séparé"""
+    app = create_app()
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+
+async def main():
+    """
+    Point d'entrée principal
+    Lance les 2 bots Telegram et le dashboard Flask en parallèle
+    """
+    logger.info("🚀 Démarrage de la Marketplace d'avis...")
+    
+    init_database()
+    logger.info("✅ Base de données initialisée")
+    
+    CLIENT_BOT_TOKEN = os.getenv('CLIENT_BOT_TOKEN')
+    WORKER_BOT_TOKEN = os.getenv('WORKER_BOT_TOKEN')
+    
+    if not CLIENT_BOT_TOKEN or not WORKER_BOT_TOKEN:
+        logger.error("❌ ERREUR: Les tokens des bots ne sont pas configurés dans .env")
+        logger.info("\nVeuillez créer un fichier .env avec :")
+        logger.info("CLIENT_BOT_TOKEN=votre_token_bot_client")
+        logger.info("WORKER_BOT_TOKEN=votre_token_bot_worker")
+        logger.info("ADMIN_PASSWORD=votre_mot_de_passe")
+        logger.info("\nVous pouvez obtenir les tokens sur https://t.me/BotFather")
+        return
+    
+    logger.info("🤖 Configuration des bots Telegram...")
+    client_app = setup_client_bot(CLIENT_BOT_TOKEN)
+    worker_app = setup_worker_bot(WORKER_BOT_TOKEN)
+    
+    logger.info("🌐 Démarrage du dashboard Flask...")
+    flask_thread = Thread(target=run_flask_app, daemon=True)
+    flask_thread.start()
+    
+    logger.info("✅ Tous les services sont démarrés !")
+    logger.info("\n" + "="*50)
+    logger.info("📊 Dashboard Admin: http://0.0.0.0:5000")
+    logger.info("   Username: admin")
+    logger.info(f"   Password: {os.getenv('ADMIN_PASSWORD', 'admin123')}")
+    logger.info("="*50 + "\n")
+    
+    async with client_app, worker_app:
+        await client_app.start()
+        logger.info("✅ Bot Client démarré")
+        
+        await worker_app.start()
+        logger.info("✅ Bot Worker démarré")
+        
+        logger.info("\n🎉 Marketplace opérationnelle !")
+        logger.info("Appuyez sur Ctrl+C pour arrêter\n")
+        
+        await asyncio.Event().wait()
+
+if __name__ == '__main__':
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("\n👋 Arrêt de la marketplace...")
+    except Exception as e:
+        logger.error(f"❌ Erreur fatale: {e}", exc_info=True)

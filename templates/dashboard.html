@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Admin - Marketplace</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Dashboard Admin</h1>
+        <a href="{{ url_for('logout') }}" class="btn btn-secondary">Déconnexion</a>
+    </div>
+    
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Commandes actives</h3>
+                <div class="stat-number">{{ stats.active_orders }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>Workers actifs</h3>
+                <div class="stat-number">{{ stats.active_workers }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>Tâches en validation</h3>
+                <div class="stat-number">{{ stats.pending_tasks }}</div>
+            </div>
+        </div>
+        
+        <section class="section">
+            <h2>📋 Commandes</h2>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Référence</th>
+                        <th>Client</th>
+                        <th>Type</th>
+                        <th>Quantité</th>
+                        <th>Prix</th>
+                        <th>Statut</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                    <tr>
+                        <td><strong>{{ order.order_id }}</strong></td>
+                        <td>{{ order.client_id }}</td>
+                        <td>{{ order.platform }}</td>
+                        <td>{{ order.quantity }}</td>
+                        <td>{{ order.price }} USDT</td>
+                        <td>
+                            {% if order.status == 'pending' %}
+                                <span class="badge badge-warning">En attente</span>
+                            {% elif order.status == 'paid' %}
+                                <span class="badge badge-info">Payé</span>
+                            {% elif order.status == 'distributed' %}
+                                <span class="badge badge-success">Distribué</span>
+                            {% else %}
+                                <span class="badge">{{ order.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('order_details', order_id=order.order_id) }}" class="btn btn-sm btn-primary">Gérer</a>
+                            <form method="POST" action="{{ url_for('delete_order_route', order_id=order.order_id) }}" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Supprimer cette commande ?')">Suppr</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center">Aucune commande</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        
+        <section class="section">
+            <h2>👥 Workers</h2>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Niveau</th>
+                        <th>Note</th>
+                        <th>Solde</th>
+                        <th>Statut</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for worker in workers %}
+                    <tr>
+                        <td><strong>{{ worker.worker_id }}</strong></td>
+                        <td>{{ worker.level }}</td>
+                        <td>{{ worker.rating if worker.rating > 0 else '-' }}</td>
+                        <td>{{ worker.balance }} USDT</td>
+                        <td>
+                            {% if worker.status == 'active' %}
+                                <span class="badge badge-success">Actif</span>
+                            {% elif worker.status == 'pending' %}
+                                <span class="badge badge-warning">En attente</span>
+                            {% else %}
+                                <span class="badge badge-danger">{{ worker.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if worker.status == 'pending' %}
+                            <form method="POST" action="{{ url_for('update_worker_status_route', worker_id=worker.worker_id) }}" style="display: inline;">
+                                <input type="hidden" name="status" value="active">
+                                <button type="submit" class="btn btn-sm btn-success">✅ Valider</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('update_worker_status_route', worker_id=worker.worker_id) }}" style="display: inline;">
+                                <input type="hidden" name="status" value="blocked">
+                                <button type="submit" class="btn btn-sm btn-danger">❌ Refuser</button>
+                            </form>
+                            {% else %}
+                            <form method="POST" action="{{ url_for('update_worker_status_route', worker_id=worker.worker_id) }}" style="display: inline;">
+                                <input type="hidden" name="status" value="blocked">
+                                <button type="submit" class="btn btn-sm btn-danger">Bloquer</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center">Aucun worker</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        
+        <section class="section">
+            <h2>✅ Tâches en validation</h2>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tâche</th>
+                        <th>Worker</th>
+                        <th>Commande</th>
+                        <th>Récompense</th>
+                        <th>Screenshot</th>
+                        <th>Lien</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for task in pending_tasks %}
+                    <tr>
+                        <td><strong>{{ task.task_id }}</strong></td>
+                        <td>{{ task.worker_id }}</td>
+                        <td>{{ task.order_id }}</td>
+                        <td>{{ task.reward }} USDT</td>
+                        <td>
+                            {% if task.proof_screenshot %}
+                            <a href="{{ url_for('view_screenshot', task_id=task.task_id) }}" target="_blank" class="btn btn-sm btn-info">Voir</a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if task.proof_link %}
+                            <a href="{{ task.proof_link }}" target="_blank" class="btn btn-sm btn-info">Voir</a>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ url_for('validate_task_route', task_id=task.task_id) }}" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-success">✅ Valider</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('reject_task_route', task_id=task.task_id) }}" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-danger">❌ Refuser</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center">Aucune tâche en validation</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </div>
+</body>
+</html>
