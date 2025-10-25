@@ -25,28 +25,35 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    welcome_text = f"""💰 Gagnez de l'argent en ligne
+    if worker['status'] == 'blocked':
+        await update.message.reply_text(
+            "🚫 Votre compte a été bloqué.\n\n"
+            "Veuillez contacter le support pour plus d'informations."
+        )
+        return
+    
+    available_tasks_count = len(get_available_tasks())
+    
+    dashboard_text = f"""💰 Tableau de bord
 
-✓ Tâches simples (3-5 min)
-✓ 0,15-3$ par tâche
-✓ Paiement crypto"""
+👤 Profil : {worker['worker_id']}
+⭐ Niveau : {worker['level']}
+💰 Solde : {worker['balance']:.2f} USDT"""
     
     keyboard = [
-        [InlineKeyboardButton("🇫🇷 Français", callback_data="lang_fr")],
-        [InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")]
+        [InlineKeyboardButton(f"💼 Tâches disponibles ({available_tasks_count})", callback_data="available_tasks")],
+        [InlineKeyboardButton("💳 Mes gains", callback_data="my_earnings")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await update.message.reply_text(welcome_text, reply_markup=reply_markup)
+    await update.message.reply_text(dashboard_text, reply_markup=reply_markup)
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Gère les clics sur les boutons"""
     query = update.callback_query
     await query.answer()
     
-    if query.data in ["lang_fr", "lang_en"]:
-        await show_dashboard(query, context)
-    elif query.data == "available_tasks":
+    if query.data == "available_tasks":
         await show_available_tasks(query, context)
     elif query.data == "my_earnings":
         await show_my_earnings(query, context)
@@ -107,12 +114,10 @@ async def show_available_tasks(query, context):
     }
     
     for task in tasks[:10]:
-        order = task  
         text += f"🟢 Tâche #{task['task_id']}\n"
-        text += f"Type : Avis {task.get('platform', 'Google')}\n"
+        text += f"Type : Avis en ligne\n"
         text += f"Rémunération : {task['reward']} USDT\n"
         text += f"Durée : ~5 min\n\n"
-        text += "✅ TEXTE FOURNI (copier-coller)\n\n"
         
         keyboard.append([InlineKeyboardButton(f"Voir {task['task_id']}", callback_data=f"task_{task['task_id']}")])
     
@@ -131,8 +136,16 @@ async def show_task_details(query, context):
         await show_available_tasks(query, context)
         return
     
+    platform_emoji = {
+        'Google Reviews': '📍 Google',
+        'Trustpilot': '⭐ Trustpilot',
+        'Pages Jaunes': '📒 Pages Jaunes',
+        'Autre': '📝'
+    }
+    
     text = f"""📋 Détails de la tâche #{task['task_id']}
 
+🎯 Plateforme : {platform_emoji.get(task.get('platform', 'Autre'), '📝')}
 💰 Rémunération : {task['reward']} USDT
 ⭐ Note à mettre : {task['rating']}/5
 
@@ -206,7 +219,17 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Gère les messages texte (liens de preuve)"""
-    if 'awaiting_proof' not in context.user_data or 'screenshot_path' not in context.user_data:
+    if 'awaiting_proof' not in context.user_data:
+        await update.message.reply_text(
+            "👋 Utilisez /start pour accéder à votre dashboard et voir les tâches disponibles."
+        )
+        return
+    
+    if 'screenshot_path' not in context.user_data:
+        await update.message.reply_text(
+            "⚠️ Veuillez d'abord envoyer le screenshot de votre avis publié.\n\n"
+            "Envoyez une photo du screenshot, puis le lien dans le message suivant."
+        )
         return
     
     task_id = context.user_data['awaiting_proof']

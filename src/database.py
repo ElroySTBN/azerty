@@ -1,9 +1,11 @@
 import sqlite3
 import random
 import string
+import logging
 from datetime import datetime
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
 DATABASE_PATH = "marketplace.db"
 
 def generate_id(prefix):
@@ -32,6 +34,21 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    
+    # Migration: Vérifier si la table tasks existe déjà et ajouter les colonnes manquantes
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tasks'")
+    tasks_table_exists = cursor.fetchone() is not None
+    
+    if tasks_table_exists:
+        cursor.execute("PRAGMA table_info(tasks)")
+        columns = [col[1] for col in cursor.fetchall()]
+        
+        if 'platform' not in columns:
+            cursor.execute("ALTER TABLE tasks ADD COLUMN platform TEXT DEFAULT 'Google Reviews'")
+            logger.info("✅ Migration: Colonne 'platform' ajoutée à la table tasks")
+        
+        cursor.execute("UPDATE tasks SET reward = 3.5 WHERE reward = 5.0")
+        logger.info("✅ Migration: Récompenses ajustées à 3.5 USDT")
     
     # Table Workers (microworkers)
     cursor.execute('''
@@ -86,7 +103,8 @@ def init_database():
             review_content TEXT NOT NULL,
             rating REAL DEFAULT 5.0,
             target_link TEXT NOT NULL,
-            reward REAL DEFAULT 5.0,
+            platform TEXT DEFAULT 'Google Reviews',
+            reward REAL DEFAULT 3.5,
             status TEXT DEFAULT 'available',
             proof_screenshot TEXT,
             proof_link TEXT,
@@ -247,9 +265,9 @@ def distribute_tasks(order_id):
     for review in reviews:
         task_id = generate_id("TSK")
         cursor.execute('''
-            INSERT INTO tasks (task_id, order_id, review_content, rating, target_link, reward)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (task_id, order_id, review['content'], review['rating'], order['target_link'], 5.0))
+            INSERT INTO tasks (task_id, order_id, review_content, rating, target_link, reward, platform)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (task_id, order_id, review['content'], review['rating'], order['target_link'], 3.5, order['platform']))
         task_ids.append(task_id)
     
     cursor.execute('UPDATE orders SET status = ? WHERE order_id = ?', ('distributed', order_id))
@@ -437,3 +455,13 @@ def get_client_by_telegram_id(telegram_id):
     client = cursor.fetchone()
     conn.close()
     return dict(client) if client else None
+
+def get_worker_by_id(worker_id):
+    """Récupère un worker par son worker_id"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT * FROM workers WHERE worker_id = ?', (worker_id,))
+    worker = cursor.fetchone()
+    conn.close()
+    return dict(worker) if worker else None

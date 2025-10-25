@@ -102,8 +102,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             await update.message.reply_text(
                 f"✅ Quantité : {quantity} avis\n"
-                f"💰 Prix estimé : {price} USDT\n\n"
-                "Veuillez entrer le lien de la page cible (ex: lien Google Maps, profil Trustpilot, etc.)"
+                f"💰 Prix : {price:.2f} USDT ({quantity} x 5 USDT)\n\n"
+                "📍 Veuillez entrer le lien de la page cible :\n"
+                "(Exemple: lien Google Maps, profil Trustpilot, etc.)"
             )
             context.user_data['awaiting'] = 'target_link'
             
@@ -140,16 +141,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📋 Référence : {order_id}\n"
             f"📊 Plateforme : {data['platform']}\n"
             f"🔢 Quantité : {data['quantity']} avis\n"
-            f"💰 Prix : {data['quantity'] * 5.0} USDT\n\n"
+            f"💰 Prix total : {data['quantity'] * 5.0:.2f} USDT\n\n"
             f"⏳ Statut : En attente de paiement\n\n"
-            f"Notre équipe va rédiger les avis selon votre brief. "
-            f"Vous recevrez une notification une fois les avis distribués aux workers."
+            f"📝 Prochaines étapes :\n"
+            f"1. Effectuez le paiement\n"
+            f"2. Notre équipe rédigera les avis selon votre brief\n"
+            f"3. Les avis seront distribués aux workers\n"
+            f"4. Vous recevrez une notification"
         )
         
         context.user_data['awaiting'] = None
         del user_data_store[user_id]
         
-        keyboard = [[InlineKeyboardButton("📊 Voir mes commandes", callback_data="my_orders")]]
+        keyboard = [
+            [InlineKeyboardButton("📊 Voir mes commandes", callback_data="my_orders")],
+            [InlineKeyboardButton("🏠 Retour au menu", callback_data="back_to_menu")]
+        ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text("Que souhaitez-vous faire ?", reply_markup=reply_markup)
 
@@ -181,7 +188,7 @@ async def show_my_orders(query, context):
         text += f"📋 {order['order_id']}\n"
         text += f"📊 {order['platform']}\n"
         text += f"🔢 {order['quantity']} avis\n"
-        text += f"💰 {order['price']} USDT\n"
+        text += f"💰 {order['price']:.2f} USDT\n"
         text += f"📍 {status_emoji.get(order['status'], order['status'])}\n"
     
     text += "\n━━━━━━━━━━━━━━━"

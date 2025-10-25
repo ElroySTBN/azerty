@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from src.database import init_database
 from src.client_bot import setup_client_bot
 from src.worker_bot import setup_worker_bot
-from src.web_admin import create_app
+from src.web_admin import create_app, set_worker_bot
 
 load_dotenv()
 
@@ -48,6 +48,10 @@ async def main():
     logger.info("🤖 Configuration des bots Telegram...")
     client_app = setup_client_bot(CLIENT_BOT_TOKEN)
     worker_app = setup_worker_bot(WORKER_BOT_TOKEN)
+    
+    logger.info("🔗 Configuration du système de notifications...")
+    bot_loop = asyncio.get_event_loop()
+    set_worker_bot(worker_app, bot_loop)
     
     logger.info("🌐 Démarrage du dashboard Flask...")
     flask_thread = Thread(target=run_flask_app, daemon=True)

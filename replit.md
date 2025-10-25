@@ -48,7 +48,7 @@ Marketplace anonyme de gestion de réputation en ligne avec 2 bots Telegram et u
 - **workers** - Microworkers (ID anonyme WRK-XXX)
 - **orders** - Commandes d'avis
 - **reviews** - Contenu des avis à distribuer
-- **tasks** - Tâches affectées aux workers
+- **tasks** - Tâches affectées aux workers (avec plateforme et rémunération 3.5 USDT)
 
 ## Fonctionnalités MVP
 
@@ -56,17 +56,22 @@ Marketplace anonyme de gestion de réputation en ligne avec 2 bots Telegram et u
 
 - ✅ Interface d'accueil avec ID anonyme
 - ✅ Menu de commande d'avis (Google, Trustpilot, Pages Jaunes, Autre)
-- ✅ Calcul automatique de prix (5 USDT par avis)
+- ✅ Calcul automatique de prix (5 USDT par avis, marge de 1.5 USDT)
+- ✅ Affichage détaillé des prix et étapes
 - ✅ Gestion des briefs
 - ✅ Suivi des commandes
+- ✅ Navigation améliorée avec boutons de retour
 
 ### Bot Worker
 
 - ✅ Dashboard personnel avec profil, niveau et solde
-- ✅ Liste des tâches disponibles avec détails
+- ✅ Liste des tâches disponibles avec plateforme affichée
+- ✅ Détails complets des tâches (plateforme, rémunération, instructions)
 - ✅ Système d'acceptation de tâches
-- ✅ Soumission de preuves (screenshot + lien)
+- ✅ Soumission de preuves (screenshot + lien) avec gestion d'erreurs
+- ✅ Notifications en temps réel (validation/rejet/activation)
 - ✅ Suivi des gains
+- ✅ Gestion des comptes bloqués
 
 ### Dashboard Admin
 
@@ -74,9 +79,10 @@ Marketplace anonyme de gestion de réputation en ligne avec 2 bots Telegram et u
 - ✅ Vue d'ensemble avec statistiques
 - ✅ Gestion complète des commandes
 - ✅ Éditeur d'avis manuel (saisie + import fichier .txt)
-- ✅ Distribution des tâches aux workers
-- ✅ Validation/rejet des tâches soumises
-- ✅ Gestion des workers (validation, blocage)
+- ✅ Distribution des tâches aux workers (3.5 USDT par tâche)
+- ✅ Validation/rejet des tâches soumises avec notifications
+- ✅ Gestion des workers (validation, blocage) avec notifications
+- ✅ Système de notifications asynchrone intégré
 
 ## Configuration
 
@@ -148,6 +154,17 @@ python main.py
 4. Le solde du worker est mis à jour automatiquement
 
 ## Changements récents
+
+- **2025-10-25**: Améliorations majeures et corrections de bugs
+  - ✅ Correction du bug de validation des tâches (mauvais ID worker)
+  - ✅ Ajout de la colonne 'platform' dans la table tasks avec migration automatique
+  - ✅ Système de notifications en temps réel pour les workers (validation/rejet/activation)
+  - ✅ Amélioration de la navigation avec boutons de retour cohérents
+  - ✅ Suppression de la sélection de langue inutile dans le worker bot
+  - ✅ Meilleure gestion des erreurs et messages utilisateur plus clairs
+  - ✅ Ajustement des prix pour une marge cohérente (Client: 5 USDT, Worker: 3.5 USDT)
+  - ✅ Affichage de la plateforme dans les détails des tâches
+  - ✅ Gestion du compte bloqué pour les workers
 
 - **2024-10-25**: Création du MVP complet
   - Architecture des 2 bots Telegram

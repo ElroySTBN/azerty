@@ -1,4 +1,5 @@
 import os
+import asyncio
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.utils import secure_filename
 from functools import wraps
@@ -6,7 +7,7 @@ from src.database import (
     get_all_orders, get_order_by_id, get_order_reviews, add_review_to_order,
     delete_review, distribute_tasks, get_all_workers, update_worker_status,
     get_tasks_pending_validation, validate_task, reject_task, get_stats,
-    delete_order, get_task_by_id, get_worker_by_telegram_id
+    delete_order, get_task_by_id, get_worker_by_id
 )
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
@@ -15,6 +16,34 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-product
 ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+worker_bot_app = None
+worker_bot_loop = None
+
+def set_worker_bot(bot_app, bot_loop):
+    """Configure le bot worker pour envoyer des notifications"""
+    global worker_bot_app, worker_bot_loop
+    worker_bot_app = bot_app
+    worker_bot_loop = bot_loop
+
+async def send_worker_notification(telegram_id, message):
+    """Envoie une notification à un worker"""
+    if worker_bot_app and worker_bot_app.bot:
+        try:
+            await worker_bot_app.bot.send_message(chat_id=telegram_id, text=message)
+        except Exception as e:
+            print(f"Erreur lors de l'envoi de notification: {e}")
+
+def notify_worker_sync(telegram_id, message):
+    """Version synchrone pour Flask - utilise la loop existante du bot"""
+    if worker_bot_app and worker_bot_loop:
+        try:
+            asyncio.run_coroutine_threadsafe(
+                send_worker_notification(telegram_id, message),
+                worker_bot_loop
+            )
+        except Exception as e:
+            print(f"Erreur lors de l'envoi de notification: {e}")
 
 def login_required(f):
     """Décorateur pour protéger les routes admin"""
@@ -165,6 +194,24 @@ def delete_order_route(order_id):
 def update_worker_status_route(worker_id):
     """Met à jour le statut d'un worker"""
     status = request.form.get('status')
+    worker = get_worker_by_id(worker_id)
+    
+    if worker:
+        if status == 'active' and worker['status'] != 'active':
+            notification = (
+                f"🎉 Félicitations !\n\n"
+                f"Votre compte worker a été approuvé !\n\n"
+                f"Vous pouvez maintenant accéder aux tâches disponibles.\n"
+                f"Utilisez /start pour commencer à gagner de l'argent."
+            )
+            notify_worker_sync(worker['telegram_id'], notification)
+        elif status == 'blocked':
+            notification = (
+                f"🚫 Votre compte a été bloqué.\n\n"
+                f"Veuillez contacter le support pour plus d'informations."
+            )
+            notify_worker_sync(worker['telegram_id'], notification)
+    
     update_worker_status(worker_id, status)
     
     status_labels = {
@@ -188,11 +235,18 @@ def validate_task_route(task_id):
     success = validate_task(task_id)
     
     if success:
-        flash(f'Tâche validée ! {task["reward"]} USDT ajoutés au solde du worker', 'success')
-        
-        worker = get_worker_by_telegram_id(task['worker_id'])
+        worker = get_worker_by_id(task['worker_id'])
         if worker:
-            pass
+            notification = (
+                f"✅ Tâche validée !\n\n"
+                f"Tâche #{task_id}\n"
+                f"💰 +{task['reward']} USDT ajoutés à votre solde\n\n"
+                f"Nouveau solde : {worker['balance'] + task['reward']:.2f} USDT\n\n"
+                f"Continuez comme ça ! 🎉"
+            )
+            notify_worker_sync(worker['telegram_id'], notification)
+        
+        flash(f'Tâche validée ! {task["reward"]} USDT ajoutés au solde du worker {task["worker_id"]}', 'success')
     else:
         flash('Erreur lors de la validation', 'error')
     
@@ -202,6 +256,19 @@ def validate_task_route(task_id):
 @login_required
 def reject_task_route(task_id):
     """Rejette une tâche soumise par un worker"""
+    task = get_task_by_id(task_id)
+    if task and task.get('worker_id'):
+        worker = get_worker_by_id(task['worker_id'])
+        if worker:
+            notification = (
+                f"❌ Tâche rejetée\n\n"
+                f"Tâche #{task_id}\n\n"
+                f"Votre soumission n'a pas été acceptée.\n"
+                f"La tâche a été remise en disponible.\n\n"
+                f"Assurez-vous de bien suivre les instructions pour vos prochaines tâches."
+            )
+            notify_worker_sync(worker['telegram_id'], notification)
+    
     reject_task(task_id)
     flash('Tâche rejetée et remise en disponible', 'warning')
     return redirect(url_for('dashboard'))
@@ -220,3 +287,7 @@ def view_screenshot(task_id):
 def create_app():
     """Créer et configurer l'application Flask"""
     return app
+
+def get_worker_bot_for_export():
+    """Retourne le bot worker pour export (utilisé par worker_bot.py si besoin)"""
+    return worker_bot_app
