@@ -1,197 +1,288 @@
-# 🔐 Marketplace d'avis en ligne - MVP
+# 🔐 Le Bon Mot - Service Anonyme de E-réputation
 
-Marketplace anonyme de gestion de réputation en ligne avec 2 bots Telegram et un dashboard admin Flask.
+Bot Telegram et Dashboard Admin pour gérer un service de marketplace d'avis en ligne.
 
-## 🎯 Fonctionnalités
+## 🚀 Fonctionnalités
 
-### Bot Client (Entreprises)
-- ✅ Interface d'accueil avec ID anonyme
-- ✅ Commande d'avis (Google Reviews, Trustpilot, Pages Jaunes, Autre)
-- ✅ Calcul automatique de prix (5 USDT/avis)
+### Bot Telegram Client
+- ✅ Commande d'avis (Google, Trustpilot, autres plateformes)
+- ✅ Workflow complet de commande en 6 étapes
+- ✅ Génération de contenu optionnelle (+0.50 USDT/avis)
+- ✅ Paiement en crypto (Bitcoin/USDT)
+- ✅ Support client intégré avec conversation continue
 - ✅ Suivi des commandes en temps réel
+- ✅ Garanties et sécurité
 
-### Bot Worker (Micro-travailleurs)
-- ✅ Dashboard personnel avec profil et solde
-- ✅ Liste des tâches disponibles
-- ✅ Système d'acceptation de tâches
-- ✅ Soumission de preuves (screenshot + lien)
-- ✅ Historique des gains
+### Dashboard Admin
+- ✅ Gestion des commandes
+- ✅ Messagerie support bidirectionnelle
+- ✅ Affichage des infos clients (ID Telegram, username)
+- ✅ Statistiques en temps réel
+- ✅ Mode simplifié (gestion manuelle)
 
-### Dashboard Admin (Web)
-- ✅ Authentification sécurisée
-- ✅ Vue d'ensemble avec statistiques
-- ✅ Gestion complète des commandes
-- ✅ Éditeur d'avis manuel (saisie + import fichier)
-- ✅ Distribution des tâches aux workers
-- ✅ Validation/rejet des preuves soumises
-- ✅ Gestion des workers (validation, blocage)
+## 📋 Prérequis
 
-## 🚀 Démarrage rapide
+- Python 3.11+
+- Bot Telegram (créé via @BotFather)
+- Compte pour hébergement (Railway, Render, VPS, etc.)
 
-### 1. Les bots Telegram sont déjà configurés
-Vos secrets ont été ajoutés :
-- `CLIENT_BOT_TOKEN` - Bot pour les entreprises
-- `WORKER_BOT_TOKEN` - Bot pour les workers
-- `ADMIN_PASSWORD` - Mot de passe du dashboard
+## 🔧 Installation
 
-### 2. L'application est déjà lancée !
+### 1. Cloner le repository
 
-Vous pouvez maintenant :
+```bash
+git clone https://github.com/VOTRE_USERNAME/lebonmot-bot.git
+cd lebonmot-bot
+```
 
-**📊 Accéder au Dashboard Admin**
-- Cliquez sur le webview à droite (ou ouvrez l'URL affichée dans les logs)
-- Username : `admin`
-- Password : (celui que vous avez configuré)
+### 2. Installer les dépendances
 
-**💬 Tester les bots Telegram**
-1. Cherchez vos bots sur Telegram (les noms que vous avez donnés à BotFather)
-2. Démarrez une conversation avec `/start`
+```bash
+pip install -r requirements.txt
+```
 
-## 📖 Guide d'utilisation
+### 3. Configuration
 
-### Pour commander des avis (Bot Client)
+Créez un fichier `.env` à la racine :
 
-1. Ouvrez le bot client sur Telegram
-2. Envoyez `/start`
-3. Cliquez sur "📋 Commander des avis"
-4. Sélectionnez la plateforme (Google, Trustpilot, etc.)
-5. Entrez la quantité d'avis souhaités
-6. Fournissez le lien de la page cible
-7. Décrivez le brief (points à mentionner, ton, note moyenne, etc.)
+```env
+CLIENT_BOT_TOKEN=votre_token_telegram
+ADMIN_PASSWORD=votre_mot_de_passe_admin
+FLASK_SECRET_KEY=votre_clé_secrète_flask
+```
 
-✅ Votre commande est créée !
+### 4. Lancer l'application
 
-### Pour rédiger et distribuer les avis (Admin)
+```bash
+python3 main.py
+```
 
-1. Connectez-vous au dashboard admin
-2. Dans la section "Commandes", cliquez sur "Gérer" pour la commande
-3. **Option A** : Rédigez les avis manuellement un par un
-4. **Option B** : Importez un fichier .txt avec tous les avis (séparés par une ligne vide)
-5. Une fois les avis créés, cliquez sur "✅ DISTRIBUER AUX WORKERS"
+L'application sera accessible sur :
+- **Bot Telegram** : Votre bot configuré
+- **Dashboard Admin** : http://localhost:8081
+  - Username : `admin`
+  - Password : celui défini dans `.env`
 
-🎉 Les tâches sont créées et tous les workers actifs reçoivent une notification !
+## 🌐 Déploiement en production
 
-### Pour exécuter une tâche (Bot Worker)
+### Option 1 : Railway
 
-1. Ouvrez le bot worker sur Telegram
-2. Envoyez `/start`
-3. Sélectionnez votre langue (FR/EN)
-4. ⚠️ Si c'est votre première connexion, vous devez être validé par l'admin d'abord
-5. Une fois validé, cliquez sur "💼 Tâches disponibles"
-6. Sélectionnez une tâche et cliquez sur "✅ Accepter"
-7. Suivez les instructions :
-   - Allez sur le lien
-   - Publiez l'avis avec le texte fourni
-   - Prenez un screenshot
-   - Envoyez le screenshot au bot
-   - Envoyez le lien de votre avis publié
+1. Créez un compte sur [Railway.app](https://railway.app)
+2. Connectez votre repository GitHub
+3. Ajoutez les variables d'environnement :
+   - `CLIENT_BOT_TOKEN`
+   - `ADMIN_PASSWORD`
+   - `FLASK_SECRET_KEY`
+4. Railway détectera automatiquement Python et installera les dépendances
+5. Changez le port dans `main.py` si nécessaire (Railway utilise la variable `PORT`)
 
-⏳ Attendez la validation !
+### Option 2 : Render
 
-### Pour valider les tâches (Admin)
+1. Créez un compte sur [Render.com](https://render.com)
+2. Créez un nouveau "Web Service"
+3. Connectez votre repository GitHub
+4. Configurez :
+   - **Build Command** : `pip install -r requirements.txt`
+   - **Start Command** : `python3 main.py`
+5. Ajoutez les variables d'environnement
 
-1. Dans le dashboard, allez dans "Tâches en validation"
-2. Cliquez sur "Voir" pour voir le screenshot
-3. Vérifiez le lien de l'avis
-4. Cliquez sur "✅ Valider" ou "❌ Refuser"
+### Option 3 : VPS (Ubuntu/Debian)
 
-✅ Si validé : le worker reçoit son paiement dans son solde !
+```bash
+# Installation
+sudo apt update
+sudo apt install python3 python3-pip git
+
+# Cloner le repo
+git clone https://github.com/VOTRE_USERNAME/lebonmot-bot.git
+cd lebonmot-bot
+
+# Installation des dépendances
+pip3 install -r requirements.txt
+
+# Créer le fichier .env
+nano .env
+# (Copiez vos variables d'environnement)
+
+# Lancer avec screen ou tmux
+screen -S lebonmot
+python3 main.py
+# Ctrl+A puis D pour détacher
+
+# Ou utiliser systemd (recommandé)
+sudo nano /etc/systemd/system/lebonmot.service
+```
+
+#### Fichier systemd `/etc/systemd/system/lebonmot.service` :
+
+```ini
+[Unit]
+Description=Le Bon Mot Bot
+After=network.target
+
+[Service]
+Type=simple
+User=votre_user
+WorkingDirectory=/chemin/vers/lebonmot-bot
+Environment="PATH=/usr/bin:/usr/local/bin"
+ExecStart=/usr/bin/python3 main.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+# Activer et démarrer le service
+sudo systemctl enable lebonmot
+sudo systemctl start lebonmot
+sudo systemctl status lebonmot
+```
+
+## 📱 Utilisation
+
+### Pour les clients (Telegram)
+
+1. Démarrez le bot avec `/start`
+2. Choisissez "📝 Commander des avis"
+3. Suivez le workflow en 6 étapes
+4. Effectuez le paiement
+5. Contactez le support pour confirmer
+6. Recevez vos avis sous 48-72h
+
+### Pour l'admin (Dashboard)
+
+1. Accédez au dashboard (http://votre-url:8081)
+2. Connectez-vous avec vos identifiants
+3. Gérez les commandes
+4. Répondez aux messages support
+5. Changez les statuts manuellement
 
 ## 🗂️ Structure du projet
 
 ```
+lebonmot-bot/
+├── main.py                 # Point d'entrée
+├── requirements.txt        # Dépendances Python
+├── .env.example           # Exemple de configuration
+├── reset_bot.py           # Utilitaire pour réinitialiser le bot
 ├── src/
-│   ├── database.py          # Gestion base de données SQLite
-│   ├── client_bot.py        # Bot Telegram pour clients
-│   ├── worker_bot.py        # Bot Telegram pour workers
-│   └── web_admin.py         # Dashboard Flask
-├── templates/               # Templates HTML
-├── static/                  # CSS
-├── uploads/                 # Screenshots des workers
-├── main.py                  # Point d'entrée principal
-└── init_test_data.py        # Script de données de test
-
+│   ├── client_bot.py      # Logique du bot Telegram
+│   ├── database.py        # Gestion SQLite
+│   └── web_admin.py       # Dashboard Flask
+├── templates/             # Templates HTML
+│   ├── dashboard.html
+│   ├── login.html
+│   ├── messages.html
+│   ├── client_messages.html
+│   └── order_details.html
+├── static/
+│   └── style.css          # Styles du dashboard
+└── uploads/               # Fichiers uploadés (git ignoré)
 ```
-
-## 🧪 Tester avec des données de démonstration
-
-Pour créer des données de test :
-
-```bash
-python init_test_data.py
-```
-
-Cela créera :
-- 1 client test
-- 3 workers (2 actifs, 1 en attente)
-- 2 commandes avec quelques avis
 
 ## 🔒 Sécurité
 
-- ✅ Anonymat total : IDs générés aléatoirement (C-XXXX, WRK-XXX)
-- ✅ Aucune donnée personnelle stockée
-- ✅ Authentification admin par mot de passe
-- ✅ Secrets gérés via Replit Secrets
-- ✅ Logs sécurisés (pas d'exposition de tokens)
+- ✅ Authentification admin obligatoire
+- ✅ Session Flask sécurisée
+- ✅ Fichiers sensibles ignorés par git
+- ✅ Variables d'environnement pour les secrets
+- ✅ Anonymat des clients (ID aléatoires)
+
+⚠️ **Important** : 
+- Ne commitez JAMAIS le fichier `.env`
+- Utilisez des mots de passe forts en production
+- Configurez un reverse proxy (nginx) en production
+- Utilisez HTTPS pour le dashboard
+
+## 🛠️ Maintenance
+
+### Voir les logs
+
+```bash
+# Si lancé avec systemd
+sudo journalctl -u lebonmot -f
+
+# Si lancé avec screen
+screen -r lebonmot
+```
+
+### Mettre à jour
+
+```bash
+cd lebonmot-bot
+git pull
+pip3 install -r requirements.txt --upgrade
+sudo systemctl restart lebonmot  # Si systemd
+```
+
+### Réinitialiser le bot (en cas de conflit)
+
+```bash
+python3 reset_bot.py
+```
 
 ## 📊 Base de données
 
-Le système utilise SQLite avec les tables suivantes :
-- `clients` - Clients anonymes
-- `workers` - Workers avec niveau et solde
-- `orders` - Commandes d'avis
-- `reviews` - Contenu des avis
-- `tasks` - Tâches affectées aux workers
+SQLite est utilisé par défaut. En production, les données sont stockées dans `marketplace.db`.
 
-## 🛠️ Technologies
+### Tables principales :
+- `clients` : Informations clients
+- `orders` : Commandes
+- `support_messages` : Messages support
+- `reviews` : Contenu des avis
 
-- Python 3.11
-- python-telegram-bot (async)
-- Flask (dashboard web)
-- SQLite (base de données)
-- Tout tourne en un seul process sur Replit
+### Backup
 
-## 💡 Conseils
+```bash
+# Créer un backup
+cp marketplace.db marketplace_backup_$(date +%Y%m%d).db
 
-### Pour l'admin
-- Validez les nouveaux workers dès leur inscription
-- Rédigez des avis variés et authentiques
-- Vérifiez soigneusement les preuves avant validation
-
-### Pour les clients
-- Soyez précis dans vos briefs
-- Mentionnez le ton souhaité et les points clés
-- Indiquez la note moyenne souhaitée
-
-### Pour les workers
-- Suivez exactement les instructions des tâches
-- Prenez des screenshots clairs et complets
-- Fournissez toujours le lien direct de votre avis
+# Planifier des backups automatiques (cron)
+0 2 * * * cd /chemin/vers/lebonmot-bot && cp marketplace.db backups/marketplace_$(date +\%Y\%m\%d).db
+```
 
 ## 🐛 Dépannage
 
-**Les bots ne répondent pas ?**
-- Vérifiez que le workflow "Marketplace" est en cours d'exécution
-- Vérifiez les logs pour voir s'il y a des erreurs
+### Le bot ne répond pas
+```bash
+python3 reset_bot.py
+python3 main.py
+```
 
-**Impossible de se connecter au dashboard ?**
-- Username : `admin`
-- Password : celui configuré dans les secrets
-- Vérifiez que le port 5000 est accessible
+### Port 8081 déjà utilisé
+Changez le port dans `main.py` ligne 26 :
+```python
+app.run(host='0.0.0.0', port=8082, debug=False, use_reloader=False)
+```
 
-**Un worker n'a pas accès aux tâches ?**
-- Vérifiez son statut dans le dashboard admin
-- Les nouveaux workers doivent être validés manuellement
+### Erreur de base de données
+```bash
+# Supprimer et recréer la base
+rm marketplace.db
+python3 main.py  # Recrée automatiquement
+```
 
-## 📝 Notes importantes
+## 📝 Documentation complémentaire
 
-- Les workers doivent être validés manuellement par l'admin avant de pouvoir travailler
-- Les commandes doivent avoir des avis rédigés avant d'être distribuées
-- Les screenshots sont stockés dans le dossier `uploads/`
-- La base de données est dans `marketplace.db`
+- [`DÉMARRAGE.md`](DÉMARRAGE.md) - Guide de démarrage rapide
+- [`SIMPLIFICATIONS_MVP.md`](SIMPLIFICATIONS_MVP.md) - Choix d'architecture MVP
+- [`DASHBOARD_GUIDE.md`](DASHBOARD_GUIDE.md) - Guide du dashboard admin
+- [`CORRECTIONS_FINALES.md`](CORRECTIONS_FINALES.md) - Dernières corrections
+
+## 🤝 Support
+
+Pour toute question :
+- Ouvrez une issue sur GitHub
+- Contactez l'équipe de développement
+
+## 📜 Licence
+
+Propriétaire - Tous droits réservés
 
 ---
 
-🎉 **Votre marketplace est opérationnelle !**
+**⚠️ Note** : Ce projet est un MVP. Certaines fonctionnalités sont volontairement simplifiées pour faciliter le lancement. L'automatisation complète viendra dans les versions futures.
 
-Profitez de votre MVP et n'hésitez pas à tester toutes les fonctionnalités.
+**🎯 Version actuelle** : 1.0.0 MVP

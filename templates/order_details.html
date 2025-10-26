@@ -144,12 +144,11 @@
         
         {% if reviews|length > 0 %}
         <section class="section distribute-section">
-            <form method="POST" action="{{ url_for('distribute_order', order_id=order.order_id) }}">
-                <button type="submit" class="btn btn-success btn-large" onclick="return confirm('Distribuer ces avis aux workers ?')">
-                    ✅ DISTRIBUER AUX WORKERS
-                </button>
-            </form>
-            <p class="help-text">Ceci va créer {{ reviews|length }} tâches et notifier tous les workers actifs.</p>
+            <div class="info-box">
+                <h3>📋 Avis prêts pour traitement manuel</h3>
+                <p>Vous avez {{ reviews|length }} avis générés pour cette commande.</p>
+                <p><strong>Mode simplifié :</strong> Les avis sont prêts à être traités manuellement (Workers gérés indépendamment).</p>
+            </div>
         </section>
         {% endif %}
     </div>

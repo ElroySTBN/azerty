@@ -17,30 +17,35 @@ ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'admin123')
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-worker_bot_app = None
-worker_bot_loop = None
+client_bot_app = None
+client_bot_loop = None
 
+def set_client_bot(bot_app, bot_loop):
+    """Configure le bot client pour envoyer des notifications"""
+    global client_bot_app, client_bot_loop
+    client_bot_app = bot_app
+    client_bot_loop = bot_loop
+
+# Alias pour compatibilité
 def set_worker_bot(bot_app, bot_loop):
-    """Configure le bot worker pour envoyer des notifications"""
-    global worker_bot_app, worker_bot_loop
-    worker_bot_app = bot_app
-    worker_bot_loop = bot_loop
+    """Alias pour compatibilité (utilise le client bot)"""
+    set_client_bot(bot_app, bot_loop)
 
-async def send_worker_notification(telegram_id, message):
-    """Envoie une notification à un worker"""
-    if worker_bot_app and worker_bot_app.bot:
+async def send_client_notification(telegram_id, message):
+    """Envoie une notification à un client"""
+    if client_bot_app and client_bot_app.bot:
         try:
-            await worker_bot_app.bot.send_message(chat_id=telegram_id, text=message)
+            await client_bot_app.bot.send_message(chat_id=telegram_id, text=message)
         except Exception as e:
             print(f"Erreur lors de l'envoi de notification: {e}")
 
 def notify_worker_sync(telegram_id, message):
     """Version synchrone pour Flask - utilise la loop existante du bot"""
-    if worker_bot_app and worker_bot_loop:
+    if client_bot_app and client_bot_loop:
         try:
             asyncio.run_coroutine_threadsafe(
-                send_worker_notification(telegram_id, message),
-                worker_bot_loop
+                send_client_notification(telegram_id, message),
+                client_bot_loop
             )
         except Exception as e:
             print(f"Erreur lors de l'envoi de notification: {e}")
@@ -81,16 +86,43 @@ def logout():
 @login_required
 def dashboard():
     """Dashboard principal admin"""
+    from src.database import get_support_messages, get_db
+    
     stats = get_stats()
     orders = get_all_orders()
-    workers = get_all_workers()
-    pending_tasks = get_tasks_pending_validation()
+    
+    # Enrichir les commandes avec les infos client
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    for order in orders:
+        # Chercher par client_id dans la table clients
+        cursor.execute('SELECT * FROM clients WHERE client_id = ?', (order['client_id'],))
+        client = cursor.fetchone()
+        
+        if client:
+            client_dict = dict(client)
+            order['telegram_id'] = client_dict.get('telegram_id', 'N/A')
+            order['telegram_username'] = client_dict.get('telegram_username', 'N/A')
+        else:
+            order['telegram_id'] = 'N/A'
+            order['telegram_username'] = 'N/A'
+    
+    conn.close()
+    
+    # Récupérer les messages support (derniers 20)
+    support_messages = get_support_messages()[:20]
+    
+    # Workers désactivés - mode simplifié
+    workers = []
+    pending_tasks = []
     
     return render_template('dashboard.html', 
                          stats=stats,
                          orders=orders,
                          workers=workers,
-                         pending_tasks=pending_tasks)
+                         pending_tasks=pending_tasks,
+                         support_messages=support_messages)
 
 @app.route('/order/<order_id>')
 @login_required
@@ -283,6 +315,113 @@ def view_screenshot(task_id):
         return redirect(url_for('dashboard'))
     
     return render_template('screenshot.html', task=task)
+
+@app.route('/order/<order_id>/payment_proof')
+@login_required
+def view_payment_proof(order_id):
+    """Affiche la preuve de paiement d'une commande"""
+    order = get_order_by_id(order_id)
+    if not order:
+        flash('Commande non trouvée', 'error')
+        return redirect(url_for('dashboard'))
+    
+    if not order.get('payment_proof'):
+        flash('Aucune preuve de paiement pour cette commande', 'warning')
+        return redirect(url_for('order_details', order_id=order_id))
+    
+    return render_template('payment_proof.html', order=order)
+
+@app.route('/uploads/<path:filename>')
+@login_required
+def serve_upload(filename):
+    """Sert les fichiers uploadés (preuves de paiement, etc.)"""
+    from flask import send_from_directory
+    return send_from_directory(UPLOAD_FOLDER, filename)
+
+@app.route('/messages')
+@login_required
+def messages_list():
+    """Liste tous les messages support"""
+    from src.database import get_support_messages, get_db
+    
+    messages = get_support_messages()
+    
+    # Grouper par client
+    clients_messages = {}
+    for msg in messages:
+        client_id = msg['client_id']
+        if client_id not in clients_messages:
+            # Récupérer les infos client
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM clients WHERE client_id = ?', (client_id,))
+            client = cursor.fetchone()
+            conn.close()
+            
+            clients_messages[client_id] = {
+                'client': dict(client) if client else {'client_id': client_id},
+                'messages': []
+            }
+        clients_messages[client_id]['messages'].append(msg)
+    
+    return render_template('messages.html', clients_messages=clients_messages)
+
+@app.route('/messages/<client_id>')
+@login_required
+def client_messages(client_id):
+    """Affiche les messages d'un client spécifique"""
+    from src.database import get_support_messages, get_db
+    
+    # Récupérer le client
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM clients WHERE client_id = ?', (client_id,))
+    client = cursor.fetchone()
+    conn.close()
+    
+    if not client:
+        flash('Client non trouvé', 'error')
+        return redirect(url_for('messages_list'))
+    
+    # Récupérer les messages
+    messages = get_support_messages(client_id)
+    
+    return render_template('client_messages.html', client=dict(client), messages=messages)
+
+@app.route('/messages/<client_id>/reply', methods=['POST'])
+@login_required
+def reply_to_client(client_id):
+    """Répond à un client"""
+    from src.database import save_support_message, get_db
+    import asyncio
+    
+    message = request.form.get('message')
+    if not message:
+        flash('Message vide', 'error')
+        return redirect(url_for('client_messages', client_id=client_id))
+    
+    # Sauvegarder le message en base
+    save_support_message(client_id, message, 'admin')
+    
+    # Récupérer le telegram_id du client
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT telegram_id FROM clients WHERE client_id = ?', (client_id,))
+    result = cursor.fetchone()
+    conn.close()
+    
+    if result:
+        telegram_id = result[0]
+        
+        # Envoyer le message au client via Telegram
+        formatted_message = f"👨‍💼 Support : {message}"
+        
+        notify_worker_sync(telegram_id, formatted_message)
+        flash('Message envoyé au client', 'success')
+    else:
+        flash('Impossible de contacter le client', 'error')
+    
+    return redirect(url_for('client_messages', client_id=client_id))
 
 def create_app():
     """Créer et configurer l'application Flask"""

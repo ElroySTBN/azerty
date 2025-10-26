@@ -116,6 +116,34 @@ def init_database():
         )
     ''')
     
+    # Table Messages Support
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS support_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id TEXT NOT NULL,
+            message TEXT NOT NULL,
+            sender_type TEXT NOT NULL,
+            telegram_username TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (client_id) REFERENCES clients(client_id)
+        )
+    ''')
+    
+    # Migrations pour colonnes manquantes
+    cursor.execute("PRAGMA table_info(orders)")
+    orders_columns = [col[1] for col in cursor.fetchall()]
+    
+    if 'payment_proof' not in orders_columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN payment_proof TEXT")
+        logger.info("✅ Migration: Colonne 'payment_proof' ajoutée à la table orders")
+    
+    cursor.execute("PRAGMA table_info(clients)")
+    clients_columns = [col[1] for col in cursor.fetchall()]
+    
+    if 'telegram_username' not in clients_columns:
+        cursor.execute("ALTER TABLE clients ADD COLUMN telegram_username TEXT")
+        logger.info("✅ Migration: Colonne 'telegram_username' ajoutée à la table clients")
+    
     conn.commit()
     conn.close()
 
@@ -465,3 +493,91 @@ def get_worker_by_id(worker_id):
     worker = cursor.fetchone()
     conn.close()
     return dict(worker) if worker else None
+
+def save_support_message(client_id, message, sender_type, telegram_username=None):
+    """Sauvegarde un message de support"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Créer la table si elle n'existe pas
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS support_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            client_id TEXT NOT NULL,
+            message TEXT NOT NULL,
+            sender_type TEXT NOT NULL,
+            telegram_username TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (client_id) REFERENCES clients(client_id)
+        )
+    ''')
+    
+    cursor.execute('''
+        INSERT INTO support_messages (client_id, message, sender_type, telegram_username)
+        VALUES (?, ?, ?, ?)
+    ''', (client_id, message, sender_type, telegram_username))
+    
+    conn.commit()
+    conn.close()
+
+def get_support_messages(client_id=None):
+    """Récupère les messages de support"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    if client_id:
+        cursor.execute('''
+            SELECT * FROM support_messages 
+            WHERE client_id = ? 
+            ORDER BY created_at ASC
+        ''', (client_id,))
+    else:
+        cursor.execute('''
+            SELECT * FROM support_messages 
+            ORDER BY created_at DESC 
+            LIMIT 100
+        ''')
+    
+    messages = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return messages
+
+def save_payment_proof(order_id, file_path):
+    """Sauvegarde la preuve de paiement pour une commande"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Ajouter la colonne si elle n'existe pas
+    cursor.execute("PRAGMA table_info(orders)")
+    columns = [col[1] for col in cursor.fetchall()]
+    
+    if 'payment_proof' not in columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN payment_proof TEXT")
+        logger.info("✅ Migration: Colonne 'payment_proof' ajoutée à la table orders")
+    
+    cursor.execute('''
+        UPDATE orders SET payment_proof = ? WHERE order_id = ?
+    ''', (file_path, order_id))
+    
+    conn.commit()
+    conn.close()
+
+def update_client_username(telegram_id, username):
+    """Met à jour le username Telegram d'un client"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Ajouter la colonne si elle n'existe pas
+    cursor.execute("PRAGMA table_info(clients)")
+    columns = [col[1] for col in cursor.fetchall()]
+    
+    if 'telegram_username' not in columns:
+        cursor.execute("ALTER TABLE clients ADD COLUMN telegram_username TEXT")
+        logger.info("✅ Migration: Colonne 'telegram_username' ajoutée à la table clients")
+    
+    cursor.execute('''
+        UPDATE clients SET telegram_username = ? WHERE telegram_id = ?
+    ''', (username, telegram_id))
+    
+    conn.commit()
+    conn.close()
