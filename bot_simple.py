@@ -267,7 +267,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = [
                 [InlineKeyboardButton("⭐ Avis Google", callback_data="service:google")],
                 [InlineKeyboardButton("🌟 Trustpilot", callback_data="service:trustpilot")],
-                [InlineKeyboardButton("📒 Pages Jaunes", callback_data="service:pagesjaunes")],
                 [InlineKeyboardButton("🌐 Autre plateforme", callback_data="service:autre_plateforme")],
                 [InlineKeyboardButton("🏠 Menu principal", callback_data="back_to_start")],
                 [InlineKeyboardButton("◀️ Retour", callback_data="new_quote")]
@@ -602,7 +601,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(
                     "❌ *Lien obligatoire*\n"
                     "Le lien est requis pour traiter votre commande.\n"
-                    "Veuillez partager le lien de votre établissement.\n"
+                    "Veuillez partager le lien de l'établissement.\n"
                     "💡 _Copiez-collez le lien_",
                     reply_markup=reply_markup,
                     parse_mode='Markdown'
