@@ -18,9 +18,10 @@ app.secret_key = os.getenv('SECRET_KEY', 'lebonmot-secret-key-2024')
 def _connect_db():
     """Connexion SQLite optimisée avec les mêmes optimisations que bot_simple"""
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.execute('PRAGMA journal_mode=WAL')
     conn.execute('PRAGMA synchronous=NORMAL')
-    conn.execute('PRAGMA cache_size=-10000')
+    conn.execute('PRAGMA cache_size=-5000')
+    conn.execute('PRAGMA temp_store=MEMORY')
+    conn.execute('PRAGMA foreign_keys=ON')
     return conn
 
 # Référence au bot pour envoyer des messages

@@ -72,9 +72,9 @@ async def main():
         
         async with bot_app:
             await bot_app.start()
-            # Polling optimisé : intervalle plus long pour réduire la consommation CPU
+            # Polling optimisé : intervalle raisonnable pour réduire CPU sans compromettre la réactivité
             await bot_app.updater.start_polling(
-                poll_interval=10.0,  # 10 secondes entre les polls (au lieu de 0.1 par défaut)
+                poll_interval=3.0,  # 3 secondes entre les polls (bon compromis)
                 timeout=20,  # Timeout plus long
                 bootstrap_retries=-1,  # Retries infinis en cas d'erreur temporaire
                 read_timeout=30,  # Timeout de lecture

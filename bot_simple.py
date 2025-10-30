@@ -36,12 +36,21 @@ def _resolve_db_path() -> str:
         os.makedirs(os.path.dirname(override) or '.', exist_ok=True)
         return override
 
-    candidates = ["/data/lebonmot_simple.db", "lebonmot_simple.db"]
+    candidates = ["/data/lebonmot_simple.db", "./lebonmot_simple.db", "lebonmot_simple.db"]
     for path in candidates:
         try:
             directory = os.path.dirname(path) or '.'
-            os.makedirs(directory, exist_ok=True)
-            return path
+            if directory != '.':
+                os.makedirs(directory, exist_ok=True)
+            # Vérifier si on peut écrire dans ce répertoire
+            test_file = os.path.join(directory, '.test_write') if directory != '.' else '.test_write'
+            try:
+                with open(test_file, 'w') as f:
+                    f.write('test')
+                os.remove(test_file)
+                return path
+            except (OSError, PermissionError):
+                continue
         except Exception:
             continue
     return "lebonmot_simple.db"
@@ -49,15 +58,13 @@ def _resolve_db_path() -> str:
 DB_PATH = _resolve_db_path()
 
 def _connect():
-    """Connexion SQLite optimisée avec WAL mode et optimisations"""
+    """Connexion SQLite optimisée (sans WAL pour éviter problèmes de persistance)"""
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    # Activer WAL mode pour meilleures performances en lecture/écriture
-    conn.execute('PRAGMA journal_mode=WAL')
-    # Optimisations pour réduire la consommation
-    conn.execute('PRAGMA synchronous=NORMAL')  # Moins strict que FULL, plus rapide
-    conn.execute('PRAGMA cache_size=-10000')  # 10MB de cache (au lieu de 2MB par défaut)
+    # Optimisations sûres qui ne compromettent pas la persistance
+    conn.execute('PRAGMA synchronous=NORMAL')  # Bon compromis vitesse/sécurité
+    conn.execute('PRAGMA cache_size=-5000')  # 5MB de cache (raisonnable)
     conn.execute('PRAGMA temp_store=MEMORY')  # Tables temporaires en RAM
-    conn.execute('PRAGMA mmap_size=268435456')  # 256MB mmap pour grandes lectures
+    conn.execute('PRAGMA foreign_keys=ON')  # Activer les clés étrangères
     return conn
 
 def init_simple_db():
