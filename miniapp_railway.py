@@ -25,7 +25,7 @@ app = Flask(__name__,
 CORS(app)
 
 # Configuration pour les sessions (nécessaire pour le dashboard admin)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-prod')
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', os.getenv('SECRET_KEY', 'dev-secret-key-change-in-prod'))
 
 # Importer les routes du dashboard admin
 from src.web_admin import (
