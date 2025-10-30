@@ -59,3 +59,8 @@ Thumbs.db
 .upm/
 .cache/
 .config/
+.env
+lebonmot_simple.db
+venv/
+__pycache__/
+*.pyc
