@@ -96,7 +96,6 @@ async def main():
             
             # Afficher le chemin de la base de données pour debug
             from bot_simple import DB_PATH
-            import os
             logger.info(f"💾 Base de données : {DB_PATH}")
             logger.info(f"   Chemin absolu : {os.path.abspath(DB_PATH)}")
             logger.info(f"   Fichier existe : {os.path.exists(DB_PATH)}")
