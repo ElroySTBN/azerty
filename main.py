@@ -76,11 +76,7 @@ async def main():
             await bot_app.updater.start_polling(
                 poll_interval=3.0,  # 3 secondes entre les polls (bon compromis)
                 timeout=20,  # Timeout plus long
-                bootstrap_retries=-1,  # Retries infinis en cas d'erreur temporaire
-                read_timeout=30,  # Timeout de lecture
-                write_timeout=30,  # Timeout d'écriture
-                connect_timeout=30,  # Timeout de connexion
-                pool_timeout=30  # Timeout du pool
+                bootstrap_retries=-1  # Retries infinis en cas d'erreur temporaire
             )
             
             # Connecter le bot au dashboard pour les réponses
