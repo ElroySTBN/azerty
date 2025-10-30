@@ -483,7 +483,7 @@ _Service Anonyme de E-réputation_
 Que souhaitez-vous faire ?"""
 
         keyboard = [
-            [InlineKeyboardButton("📝 Obtenir un devis", callback_data="new_quote")],
+            [InlineKeyboardButton("📝 Passer une commande directement", callback_data="new_quote")],
             [InlineKeyboardButton("💬 Contacter le support", callback_data="contact_support")]
         ]
         
