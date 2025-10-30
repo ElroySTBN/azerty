@@ -5,6 +5,7 @@ Lance le bot Telegram et le dashboard admin
 import os
 import asyncio
 import logging
+import signal
 from threading import Thread
 from dotenv import load_dotenv
 
@@ -25,6 +26,12 @@ logging.getLogger('telegram').setLevel(logging.WARNING)
 
 def run_flask():
     """Lance le dashboard Flask"""
+    # S'assurer que la base SQLite est initialisée même si le bot ne s'est pas encore lancé
+    try:
+        from bot_simple import init_simple_db
+        init_simple_db()
+    except Exception as e:
+        logger.warning(f"⚠️ Impossible d'initialiser la base avant Flask: {e}")
     app = create_simple_dashboard()
     port = int(os.getenv('PORT', 8081))
     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
@@ -54,7 +61,6 @@ async def main():
     
     logger.info("✅ Dashboard admin démarré !")
     logger.info(f"📊 Dashboard: http://localhost:{os.getenv('PORT', 8081)}")
-    logger.info("   Username/Password: admin123")
     
     # Démarrer le bot Telegram
     try:
@@ -80,8 +86,25 @@ async def main():
             logger.info("   Vous gérez les devis depuis le dashboard.\n")
             logger.info("Ctrl+C pour arrêter\n")
             
-            # Garder le bot actif
-            await asyncio.Event().wait()
+            # Gestion propre des signaux pour Railway/Heroku-like
+            stop_event = asyncio.Event()
+
+            def _handle_signal(*_):
+                logger.info("\n🛑 Signal reçu, arrêt en cours…")
+                stop_event.set()
+
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                try:
+                    asyncio.get_running_loop().add_signal_handler(sig, _handle_signal)
+                except NotImplementedError:
+                    # Windows/limitations: on ignore
+                    pass
+
+            # Garder l'app active jusqu'au signal d'arrêt
+            await stop_event.wait()
+            logger.info("Arrêt du bot…")
+            await bot_app.updater.stop()
+            await bot_app.stop()
     
     except Exception as e:
         logger.error(f"❌ Erreur bot Telegram : {e}", exc_info=True)
