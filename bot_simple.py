@@ -237,12 +237,12 @@ _Service Anonyme de E-réputation_
 
 Que souhaitez-vous faire aujourd'hui ?"""
 
-    keyboard = [
-        [InlineKeyboardButton("📝 Passer une commande", callback_data="new_quote")],
-        [InlineKeyboardButton("📋 Mes Commandes", callback_data="my_orders")],
-        [InlineKeyboardButton("💬 Contacter le support", callback_data="contact_support")]
-    ]
-    
+        keyboard = [
+            [InlineKeyboardButton("📝 Passer une commande", callback_data="new_quote")],
+            [InlineKeyboardButton("📋 Mes Commandes", callback_data="my_orders")],
+            [InlineKeyboardButton("💬 Contacter le support", callback_data="contact_support")]
+        ]
+        
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
