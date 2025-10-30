@@ -115,9 +115,9 @@ Bonjour {user.first_name} ! 👋
 Que souhaitez-vous faire aujourd'hui ?"""
 
     keyboard = [
-        [InlineKeyboardButton("📝 Obtenir un devis", callback_data="new_quote")],
-        [InlineKeyboardButton("💬 Contacter le support", callback_data="contact_support")],
-        [InlineKeyboardButton("ℹ️ Nos garanties", callback_data="guarantees")]
+        [InlineKeyboardButton("📝 Passer une commande", callback_data="new_quote")],
+        [InlineKeyboardButton("📋 Mes Commandes", callback_data="my_orders")],
+        [InlineKeyboardButton("💬 Contacter le support", callback_data="contact_support")]
     ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -134,28 +134,82 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     
     if data == "new_quote":
-        # Démarrer le processus de qualification
+        # Démarrer le processus de qualification - Choix principal
         user_conversations[telegram_id] = {
-            'step': 'service_type',
+            'step': 'main_choice',
             'username': user.username,
             'first_name': user.first_name
         }
         
         keyboard = [
-            [InlineKeyboardButton("⭐ Avis Google", callback_data="service:google")],
-            [InlineKeyboardButton("🌟 Trustpilot", callback_data="service:trustpilot")],
-            [InlineKeyboardButton("💬 Messages Forum", callback_data="service:forum")],
-            [InlineKeyboardButton("📒 Pages Jaunes", callback_data="service:pagesjaunes")],
-            [InlineKeyboardButton("🌐 Autre plateforme", callback_data="service:autre_plateforme")],
-            [InlineKeyboardButton("🗑️ Suppression de liens", callback_data="service:suppression")],
+            [InlineKeyboardButton("⭐ Avis (Google, Trustpilot, etc.)", callback_data="category:avis")],
+            [InlineKeyboardButton("💬 Messages sur forum", callback_data="category:forum")],
+            [InlineKeyboardButton("🗑️ Suppression de lien (1ère page)", callback_data="category:suppression")],
+            [InlineKeyboardButton("« Retour", callback_data="back_to_start")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(
-            "📋 **Étape 1/4 : Type de service**\n\nQuel service souhaitez-vous ?",
+            "📋 **Que souhaitez-vous commander ?**\n\nChoisissez le type de service :",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
+    
+    elif data.startswith("category:"):
+        category = data.split(":")[1]
+        
+        if category == "avis":
+            # Choix de la plateforme d'avis
+            user_conversations[telegram_id]['step'] = 'service_type'
+            
+            keyboard = [
+                [InlineKeyboardButton("⭐ Avis Google", callback_data="service:google")],
+                [InlineKeyboardButton("🌟 Trustpilot", callback_data="service:trustpilot")],
+                [InlineKeyboardButton("📒 Pages Jaunes", callback_data="service:pagesjaunes")],
+                [InlineKeyboardButton("🌐 Autre plateforme", callback_data="service:autre_plateforme")],
+                [InlineKeyboardButton("« Retour", callback_data="new_quote")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                "⭐ **Avis sur quelle plateforme ?**\n\nChoisissez la plateforme :",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        
+        elif category == "forum":
+            # Direct au service forum
+            user_conversations[telegram_id]['service_type'] = 'forum'
+            user_conversations[telegram_id]['step'] = 'quantity'
+            
+            service_info = PRICING['forum']
+            
+            await query.edit_message_text(
+                f"✅ Service sélectionné : **{service_info['name']}**\n"
+                f"💰 Prix unitaire : **{service_info['price']} {service_info['currency']}**\n"
+                f"🛡️ Garantie : {service_info['guarantee']}\n\n"
+                f"📊 **Étape 1/3 : Quantité**\n\n"
+                f"Combien de messages souhaitez-vous ?\n"
+                f"_(Répondez avec un nombre, ex: 5, 10, 20...)_",
+                parse_mode='Markdown'
+            )
+        
+        elif category == "suppression":
+            # Direct au service suppression
+            user_conversations[telegram_id]['service_type'] = 'suppression'
+            user_conversations[telegram_id]['step'] = 'quantity'
+            
+            service_info = PRICING['suppression']
+            
+            await query.edit_message_text(
+                f"✅ Service sélectionné : **{service_info['name']}**\n"
+                f"💰 Prix : **{service_info['price']}** (estimation sur mesure)\n"
+                f"🛡️ Garantie : {service_info['guarantee']}\n\n"
+                f"📊 **Étape 1/3 : Détails**\n\n"
+                f"Combien de liens à supprimer ?\n"
+                f"_(Répondez avec un nombre, ex: 1, 2, 3...)_",
+                parse_mode='Markdown'
+            )
     
     elif data.startswith("service:"):
         service = data.split(":")[1]
@@ -174,6 +228,41 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
     
+    elif data == "my_orders":
+        # Afficher les commandes du client
+        user_conversations[telegram_id]['step'] = 'viewing_orders'
+        
+        conn = sqlite3.connect('lebonmot_simple.db')
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT * FROM conversations 
+            WHERE telegram_id = ? AND service_type IS NOT NULL
+            ORDER BY created_at DESC
+            LIMIT 5
+        ''', (telegram_id,))
+        
+        orders = cursor.fetchall()
+        conn.close()
+        
+        if orders:
+            orders_text = "📋 **Vos commandes récentes**\n\n"
+            for order in orders:
+                service_name = PRICING.get(order['service_type'], {}).get('name', order['service_type'])
+                orders_text += f"• **{service_name}** - {order['quantity']}\n"
+                orders_text += f"  💰 {order['estimated_price']}\n"
+                orders_text += f"  📅 {order['created_at'][:10]}\n\n"
+            
+            orders_text += "\n💬 Pour toute question, contactez le support !"
+        else:
+            orders_text = "📋 **Aucune commande pour le moment**\n\nCommencez par passer votre première commande ! 🚀"
+        
+        keyboard = [[InlineKeyboardButton("« Retour au menu", callback_data="back_to_start")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(orders_text, reply_markup=reply_markup, parse_mode='Markdown')
+    
     elif data == "contact_support":
         user_conversations[telegram_id] = {'step': 'support_mode'}
         
@@ -184,44 +273,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         save_message(telegram_id, "👤 Client a contacté le support", 'system')
-    
-    elif data == "guarantees":
-        guarantees_text = """🛡️ **Nos Garanties**
-
-━━━━━━━━━━━━━━━━━━
-
-**🔒 Anonymat Total**
-• Vos données personnelles ne sont jamais divulguées
-• Paiement 100% crypto (USDT)
-• Aucune trace bancaire
-
-**🌍 Avis Authentiques**
-• IP réelles et géolocalisées
-• Comptes vérifiés et actifs
-• Rédaction personnalisée
-
-**⭐ Garanties Non-Drop**
-• Google Reviews : 6 mois + replacement gratuit
-• Trustpilot : 1 an garanti
-• Autres plateformes : Selon conditions
-
-**⚡ Livraison Rapide**
-• Délai moyen : 48-72h
-• Mise en ligne progressive
-• Suivi en temps réel
-
-**💬 Support Réactif**
-• Disponible 7j/7
-• Réponse sous 2h max
-• Accompagnement personnalisé
-
-━━━━━━━━━━━━━━━━━━
-_Plus de 15 000 clients satisfaits !_"""
-        
-        keyboard = [[InlineKeyboardButton("« Retour au menu", callback_data="back_to_start")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(guarantees_text, reply_markup=reply_markup, parse_mode='Markdown')
     
     elif data == "back_to_start":
         user_conversations[telegram_id] = {'step': 'menu'}
