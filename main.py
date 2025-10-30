@@ -35,6 +35,14 @@ async def main():
     init_database()
     logger.info("✅ Base de données initialisée")
     
+    # Réinitialiser le bot Telegram pour éviter les conflits
+    try:
+        from reset_telegram_webhook import reset_telegram_connection
+        logger.info("🧹 Réinitialisation de la connexion Telegram...")
+        await reset_telegram_connection()
+    except Exception as e:
+        logger.warning(f"⚠️  Impossible de réinitialiser le bot: {e}")
+    
     CLIENT_BOT_TOKEN = os.getenv('CLIENT_BOT_TOKEN')
     
     if not CLIENT_BOT_TOKEN:
