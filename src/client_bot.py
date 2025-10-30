@@ -40,7 +40,7 @@ def format_price(quantity, has_content_generation):
     return base_price
 
 def build_recap_text(data):
-    """Construit le texte de récapitulatif"""
+    """Construit le texte de récapitulatif pour les avis"""
     price = format_price(data['quantity'], data.get('content_generation', False))
     recap = f"""📋 Récapitulatif de votre commande
 
@@ -50,6 +50,24 @@ def build_recap_text(data):
 📍 URL cible : {data['target_link'][:50]}...
 💭 Instructions : {data.get('instructions', 'Aucune')[:50]}...
 🤖 Génération : {'Oui (+0.5 USDT/avis)' if data.get('content_generation') else 'Vous fournissez le contenu'}
+━━━━━━━━━━━━━━━━━━
+💰 Prix total : {price:.2f} USDT
+━━━━━━━━━━━━━━━━━━
+"""
+    return recap
+
+def build_recap_text_forum(data):
+    """Construit le texte de récapitulatif pour les messages forum"""
+    price = format_price(data['quantity'], data.get('content_generation', False))
+    recap = f"""📋 Récapitulatif de votre commande
+
+━━━━━━━━━━━━━━━━━━
+💬 Type : Messages Forum
+🔢 Nombre de messages : {data['quantity']}
+📍 URL du forum : {data['target_link'][:50]}...
+📝 Sujet : {data.get('forum_subject', 'Non spécifié')[:50]}...
+💭 Instructions : {data.get('instructions', 'Aucune')[:50]}...
+🤖 Génération : {'Oui (+0.5 USDT/message)' if data.get('content_generation') else 'Vous fournissez le contenu'}
 ━━━━━━━━━━━━━━━━━━
 💰 Prix total : {price:.2f} USDT
 ━━━━━━━━━━━━━━━━━━
@@ -79,6 +97,7 @@ Service Anonyme de E-réputation
 
 ━━━━━━━━━━━━━━━━━━
 🌍 Avis 100% authentiques et géolocalisés
+💬 Messages de forum professionnels
 🔒 Anonymat total garanti
 🎯 IP réelles, comptes vérifiés
 💳 Paiement crypto uniquement
@@ -90,9 +109,10 @@ Service Anonyme de E-réputation
 Votre ID : #{}""".format(client['client_id'])
     
     keyboard = [
-        [InlineKeyboardButton("📝 Commander des avis", callback_data="order:start")],
+        [InlineKeyboardButton("📝 Commander des avis", callback_data="order:type_reviews")],
+        [InlineKeyboardButton("💬 Messages sur forums", callback_data="order:type_forum")],
         [InlineKeyboardButton("📦 Mes commandes", callback_data="orders:list")],
-        [InlineKeyboardButton("💬 Contacter le support", callback_data="support:contact")],
+        [InlineKeyboardButton("🔹 Contacter le support", callback_data="support:contact")],
         [InlineKeyboardButton("🛡️ Garanties", callback_data="info:guarantees")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -153,12 +173,14 @@ async def handle_order_flow(query, context, step):
     """Gère le workflow de commande"""
     user_id = query.from_user.id
     
-    if step == 'start':
+    # Choix du type de commande
+    if step == 'type_reviews':
         # Désactiver le mode support si actif
         if 'support_mode' in context.user_data:
             del context.user_data['support_mode']
         
         # Étape 1: Choix de la plateforme
+        user_data_store[user_id] = {'order_type': 'reviews'}
         user_order_states[user_id] = {'step': OrderState.PLATFORM}
         
         text = """📋 Étape 1/6 : Choix de la plateforme
@@ -173,6 +195,30 @@ Sur quelle plateforme souhaitez-vous des avis ?"""
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(text, reply_markup=reply_markup)
+    
+    elif step == 'type_forum':
+        # Désactiver le mode support si actif
+        if 'support_mode' in context.user_data:
+            del context.user_data['support_mode']
+        
+        # Workflow pour messages forum
+        user_data_store[user_id] = {'order_type': 'forum', 'platform': '💬 Messages Forum'}
+        user_order_states[user_id] = {'step': OrderState.QUANTITY}
+        
+        text = """📋 Étape 1/5 : Nombre de messages
+
+Combien de messages souhaitez-vous poster sur le forum ?
+(Entrez un nombre)"""
+        
+        keyboard = [[InlineKeyboardButton("🏠 Retour au menu", callback_data="back:menu")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(text, reply_markup=reply_markup)
+        
+        context.user_data['awaiting'] = OrderState.QUANTITY
+    
+    elif step == 'start':
+        # Ancien comportement (redirige vers type_reviews pour compatibilité)
+        await handle_order_flow(query, context, 'type_reviews')
     
     elif step.startswith('platform_'):
         # Plateforme sélectionnée
@@ -246,7 +292,57 @@ Décrivez ce que vous souhaitez :
 
 Ou tapez "Passer" pour des avis génériques."""
         
-        keyboard = [[InlineKeyboardButton("« Retour", callback_data="order:start")]]
+        keyboard = [[InlineKeyboardButton("« Retour", callback_data="order:type_reviews")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(recap, reply_markup=reply_markup)
+        
+        context.user_data['awaiting'] = OrderState.INSTRUCTIONS
+    
+    elif step == 'forum_content_self':
+        # L'utilisateur rédige les messages forum lui-même
+        user_data_store[user_id]['content_generation'] = False
+        user_order_states[user_id]['step'] = OrderState.RECAP
+        
+        recap = build_recap_text_forum(user_data_store[user_id])
+        recap += f"""
+📝 Étape 5/5 : Validation
+
+Vérifiez les informations ci-dessus.
+Souhaitez-vous confirmer cette commande ?"""
+        
+        keyboard = [
+            [InlineKeyboardButton("✅ Confirmer et payer", callback_data="confirm:final")],
+            [InlineKeyboardButton("✏️ Modifier", callback_data="recap:edit")],
+            [InlineKeyboardButton("❌ Annuler", callback_data="back:menu")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(recap, reply_markup=reply_markup)
+    
+    elif step == 'forum_content_generated':
+        # Le Bon Mot génère les messages forum
+        user_data_store[user_id]['content_generation'] = True
+        user_order_states[user_id]['step'] = OrderState.INSTRUCTIONS
+        
+        recap = f"""📋 Récapitulatif
+━━━━━━━━━━━━━━━━━━
+💬 Type : Messages Forum
+🔢 Nombre de messages : {user_data_store[user_id]['quantity']}
+📍 URL : {user_data_store[user_id]['target_link'][:30]}...
+📝 Sujet : {user_data_store[user_id].get('forum_subject', '')[:30]}...
+🤖 Génération : Le Bon Mot (+0.5€/message)
+━━━━━━━━━━━━━━━━━━
+
+📝 Étape 5/5 : Instructions
+
+Décrivez ce que vous souhaitez :
+• Ton souhaité (professionnel, décontracté, humoristique...)
+• Points précis à mentionner
+• Mots-clés importants
+• Style d'écriture
+
+Ou tapez "Passer" pour des messages génériques."""
+        
+        keyboard = [[InlineKeyboardButton("« Retour", callback_data="order:type_forum")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(recap, reply_markup=reply_markup)
         
@@ -305,6 +401,7 @@ Service Anonyme de E-réputation
 
 ━━━━━━━━━━━━━━━━━━
 🌍 Avis 100% authentiques et géolocalisés
+💬 Messages de forum professionnels
 🔒 Anonymat total garanti
 🎯 IP réelles, comptes vérifiés
 💳 Paiement crypto uniquement
@@ -316,9 +413,10 @@ Service Anonyme de E-réputation
 Votre ID : #{}""".format(client['client_id'])
     
     keyboard = [
-        [InlineKeyboardButton("📝 Commander des avis", callback_data="order:start")],
+        [InlineKeyboardButton("📝 Commander des avis", callback_data="order:type_reviews")],
+        [InlineKeyboardButton("💬 Messages sur forums", callback_data="order:type_forum")],
         [InlineKeyboardButton("📦 Mes commandes", callback_data="orders:list")],
-        [InlineKeyboardButton("💬 Contacter le support", callback_data="support:contact")],
+        [InlineKeyboardButton("🔹 Contacter le support", callback_data="support:contact")],
         [InlineKeyboardButton("🛡️ Garanties", callback_data="info:guarantees")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -370,8 +468,21 @@ Pour revenir au menu principal, cliquez ci-dessous :""",
             user_data_store[user_id]['quantity'] = quantity
             user_order_states[user_id]['step'] = OrderState.URL
             
-            # Récapitulatif
-            recap = f"""📋 Récapitulatif
+            # Récapitulatif adapté selon le type
+            order_type = user_data_store[user_id].get('order_type', 'reviews')
+            
+            if order_type == 'forum':
+                recap = f"""📋 Récapitulatif
+━━━━━━━━━━━━━━━━━━
+💬 Type : Messages Forum
+🔢 Nombre de messages : {quantity}
+━━━━━━━━━━━━━━━━━━
+
+📝 Étape 2/5 : URL du forum
+
+Entrez l'URL du forum ou du topic où poster les messages"""
+            else:
+                recap = f"""📋 Récapitulatif
 ━━━━━━━━━━━━━━━━━━
 📊 Plateforme : {user_data_store[user_id]['platform']}
 🔢 Nombre d'avis : {quantity}
@@ -389,9 +500,31 @@ Entrez l'URL ou l'identifiant de la page cible"""
     
     elif awaiting == OrderState.URL:
         user_data_store[user_id]['target_link'] = update.message.text
-        user_order_states[user_id]['step'] = OrderState.CONTENT_CHOICE
+        order_type = user_data_store[user_id].get('order_type', 'reviews')
         
-        recap = f"""📋 Récapitulatif
+        if order_type == 'forum':
+            # Pour les forums, demander le sujet/contexte après l'URL
+            user_order_states[user_id]['step'] = 'FORUM_SUBJECT'
+            
+            recap = f"""📋 Récapitulatif
+━━━━━━━━━━━━━━━━━━
+💬 Type : Messages Forum
+🔢 Nombre de messages : {user_data_store[user_id]['quantity']}
+📍 URL : {update.message.text[:50]}...
+━━━━━━━━━━━━━━━━━━
+
+📝 Étape 3/5 : Sujet / Contexte
+
+Quel est le sujet ou le contexte des messages à poster ?
+(Ex: Promotion d'un produit, témoignage client, question technique...)"""
+            
+            await update.message.reply_text(recap)
+            context.user_data['awaiting'] = 'FORUM_SUBJECT'
+        else:
+            # Pour les avis, afficher le choix de rédaction
+            user_order_states[user_id]['step'] = OrderState.CONTENT_CHOICE
+            
+            recap = f"""📋 Récapitulatif
 ━━━━━━━━━━━━━━━━━━
 📊 Plateforme : {user_data_store[user_id]['platform']}
 🔢 Nombre d'avis : {user_data_store[user_id]['quantity']}
@@ -409,11 +542,46 @@ Entrez l'URL ou l'identifiant de la page cible"""
 • Avis authentiques et variés
 • Prix : {format_price(user_data_store[user_id]['quantity'], True):.2f} USDT
 • (+0.50 USDT par avis)"""
+            
+            keyboard = [
+                [InlineKeyboardButton("📝 Je rédige moi-même", callback_data="order:content_self")],
+                [InlineKeyboardButton("🤖 Le Bon Mot rédige ✨", callback_data="order:content_generated")],
+                [InlineKeyboardButton("« Retour", callback_data="order:type_reviews")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(recap, reply_markup=reply_markup)
+            
+            context.user_data['awaiting'] = None
+    
+    elif awaiting == 'FORUM_SUBJECT':
+        # Sujet/contexte pour messages forum
+        user_data_store[user_id]['forum_subject'] = update.message.text
+        user_order_states[user_id]['step'] = OrderState.CONTENT_CHOICE
+        
+        recap = f"""📋 Récapitulatif
+━━━━━━━━━━━━━━━━━━
+💬 Type : Messages Forum
+🔢 Nombre de messages : {user_data_store[user_id]['quantity']}
+📍 URL : {user_data_store[user_id]['target_link'][:40]}...
+📝 Sujet : {update.message.text[:40]}...
+━━━━━━━━━━━━━━━━━━
+
+📝 Étape 4/5 : Qui rédige les messages ?
+
+📝 Option 1 - Vous rédigez
+• Vous fournissez le contenu
+• Prix : {user_data_store[user_id]['quantity'] * BASE_PRICE_PER_REVIEW:.2f} USDT
+
+🤖 Option 2 - Le Bon Mot rédige ✨
+• Notre équipe génère les messages
+• Messages authentiques et variés
+• Prix : {format_price(user_data_store[user_id]['quantity'], True):.2f} USDT
+• (+0.50 USDT par message)"""
         
         keyboard = [
-            [InlineKeyboardButton("📝 Je rédige moi-même", callback_data="order:content_self")],
-            [InlineKeyboardButton("🤖 Le Bon Mot rédige ✨", callback_data="order:content_generated")],
-            [InlineKeyboardButton("« Retour", callback_data="order:start")]
+            [InlineKeyboardButton("📝 Je rédige moi-même", callback_data="order:forum_content_self")],
+            [InlineKeyboardButton("🤖 Le Bon Mot rédige ✨", callback_data="order:forum_content_generated")],
+            [InlineKeyboardButton("« Retour", callback_data="order:type_forum")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(recap, reply_markup=reply_markup)
@@ -424,10 +592,18 @@ Entrez l'URL ou l'identifiant de la page cible"""
         user_data_store[user_id]['instructions'] = update.message.text if update.message.text.lower() != 'passer' else ''
         user_order_states[user_id]['step'] = OrderState.RECAP
         
-        # Afficher le récapitulatif final
-        recap = build_recap_text(user_data_store[user_id])
+        # Afficher le récapitulatif final adapté au type
+        order_type = user_data_store[user_id].get('order_type', 'reviews')
+        
+        if order_type == 'forum':
+            recap = build_recap_text_forum(user_data_store[user_id])
+            etape = "5/5"
+        else:
+            recap = build_recap_text(user_data_store[user_id])
+            etape = "6/6"
+        
         recap += f"""
-📝 Étape 6/6 : Validation
+📝 Étape {etape} : Validation
 
 Vérifiez les informations ci-dessus.
 Souhaitez-vous confirmer cette commande ?"""
@@ -523,6 +699,12 @@ async def finalize_order(query, context):
     user_id = query.from_user.id
     client = get_or_create_client(user_id)
     data = user_data_store[user_id]
+    order_type = data.get('order_type', 'reviews')
+    
+    # Préparer le brief (inclure le sujet du forum si applicable)
+    brief = data.get('instructions', '')
+    if order_type == 'forum' and 'forum_subject' in data:
+        brief = f"Sujet: {data['forum_subject']}\n\nInstructions: {brief}"
     
     # Créer la commande en base
     order_id = create_order(
@@ -530,14 +712,24 @@ async def finalize_order(query, context):
         data['platform'],
         data['quantity'],
         data['target_link'],
-        data.get('instructions', '')
+        brief,
+        order_type=order_type
     )
     
     # Calcul du prix
     price = format_price(data['quantity'], data.get('content_generation', False))
     tracking = generate_tracking_number()
     
-    # Message de confirmation
+    # Message de confirmation adapté au type
+    if order_type == 'forum':
+        item_type = "messages"
+        item_icon = "💬"
+        delivery_text = "Livraison : 24-48h après confirmation du paiement"
+    else:
+        item_type = "avis"
+        item_icon = "⭐"
+        delivery_text = "Livraison : 48-72h après confirmation du paiement"
+    
     confirm_text = f"""✅ Commande confirmée !
 
 ━━━━━━━━━━━━━━━━━━
@@ -546,8 +738,8 @@ async def finalize_order(query, context):
 ━━━━━━━━━━━━━━━━━━
 
 📊 Récapitulatif :
-• Plateforme : {data['platform']}
-• Nombre d'avis : {data['quantity']}
+• Type : {item_icon} {data['platform']}
+• Nombre de {item_type} : {data['quantity']}
 • Génération : {'Oui' if data.get('content_generation') else 'Non'}
 • Prix total : **{price:.2f} USDT**
 ━━━━━━━━━━━━━━━━━━
@@ -568,7 +760,7 @@ Adresse Bitcoin :
 2. Notre support vous contactera pour confirmer la réception
 3. Confirmation sous 2h
 
-⏳ Livraison : 48-72h après confirmation du paiement
+⏳ {delivery_text}
 
 💡 Besoin d'aide ? Utilisez "💬 Contacter le support" depuis le menu principal."""
     
@@ -593,12 +785,17 @@ async def show_my_orders(query, context):
     orders = get_client_orders(client['client_id'])
     
     if not orders:
+        keyboard = [
+            [InlineKeyboardButton("📝 Commander des avis", callback_data="order:type_reviews")],
+            [InlineKeyboardButton("💬 Messages sur forums", callback_data="order:type_forum")],
+            [InlineKeyboardButton("🏠 Retour au menu", callback_data="back:menu")]
+        ]
         await query.edit_message_text(
             "📦 Mes commandes\n\n"
             "Vous n'avez pas encore de commandes.\n\n"
             "Commencez votre première commande !\n\n"
             "━━━━━━━━━━━━━━━━━━",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📝 Commander des avis", callback_data="order:start")]])
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
     
@@ -614,17 +811,22 @@ async def show_my_orders(query, context):
     
     for order in orders[:10]:
         status_emoji, status_desc = status_info.get(order['status'], ('❓', ''))
+        order_type = order.get('order_type', 'reviews')
+        item_type = "messages" if order_type == 'forum' else "avis"
+        item_icon = "💬" if order_type == 'forum' else "⭐"
+        
         text += f"{status_emoji} {order['order_id']}\n"
-        text += f"📊 {order['platform']}\n"
-        text += f"🔢 {order['quantity']} avis\n"
+        text += f"{item_icon} {order['platform']}\n"
+        text += f"🔢 {order['quantity']} {item_type}\n"
         text += f"💰 {order['price']:.2f} USDT\n"
         if status_desc:
             text += f"💬 {status_desc}\n"
         text += "━━━━━━━━━━━━━━━━━━\n"
     
     keyboard = [
-        [InlineKeyboardButton("📝 Nouvelle commande", callback_data="order:start")],
-        [InlineKeyboardButton("💬 Support", callback_data="support:contact")],
+        [InlineKeyboardButton("📝 Commander des avis", callback_data="order:type_reviews")],
+        [InlineKeyboardButton("💬 Messages sur forums", callback_data="order:type_forum")],
+        [InlineKeyboardButton("🔹 Support", callback_data="support:contact")],
         [InlineKeyboardButton("🏠 Menu", callback_data="back:menu")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -638,7 +840,7 @@ async def show_guarantees(query, context):
 ━━━━━━━━━━━━━━━━━━
 ✅ GARANTIES
 ━━━━━━━━━━━━━━━━━━
-• Avis 100% authentiques et vérifiés
+• Avis et messages 100% authentiques
 • Livraison garantie sous 72h
 • Remplacement gratuit si problème
 • Satisfaction ou remboursement
@@ -662,8 +864,9 @@ async def show_guarantees(query, context):
 • Autres cryptos sur demande"""
     
     keyboard = [
-        [InlineKeyboardButton("📝 Commander", callback_data="order:start")],
-        [InlineKeyboardButton("💬 Support", callback_data="support:contact")],
+        [InlineKeyboardButton("📝 Commander des avis", callback_data="order:type_reviews")],
+        [InlineKeyboardButton("💬 Messages sur forums", callback_data="order:type_forum")],
+        [InlineKeyboardButton("🔹 Support", callback_data="support:contact")],
         [InlineKeyboardButton("🏠 Menu", callback_data="back:menu")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)

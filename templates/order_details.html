@@ -24,10 +24,24 @@
         <div class="order-info">
             <div class="info-grid">
                 <div class="info-item">
-                    <strong>Type :</strong> {{ order.platform }}
+                    <strong>Type :</strong> 
+                    {% if order.order_type == 'forum' %}
+                        <span class="badge" style="background: #9b59b6;">💬 Messages Forum</span>
+                    {% else %}
+                        <span class="badge" style="background: #3498db;">⭐ Avis</span>
+                    {% endif %}
                 </div>
                 <div class="info-item">
-                    <strong>Quantité :</strong> {{ order.quantity }} avis
+                    <strong>Plateforme :</strong> {{ order.platform }}
+                </div>
+                <div class="info-item">
+                    <strong>Quantité :</strong> 
+                    {{ order.quantity }} 
+                    {% if order.order_type == 'forum' %}
+                        messages
+                    {% else %}
+                        avis
+                    {% endif %}
                 </div>
                 <div class="info-item">
                     <strong>Client :</strong> {{ order.client_id }}
@@ -65,24 +79,25 @@
         </div>
         
         <section class="section">
-            <h2>✍️ Gestion des avis</h2>
+            <h2>✍️ Gestion des {% if order.order_type == 'forum' %}messages{% else %}avis{% endif %}</h2>
             
             <div class="avis-summary">
-                <strong>Avis générés : {{ reviews|length }}/{{ order.quantity }}</strong>
+                <strong>{% if order.order_type == 'forum' %}Messages{% else %}Avis{% endif %} générés : {{ reviews|length }}/{{ order.quantity }}</strong>
                 {% if reviews|length < order.quantity %}
-                    <span class="badge badge-warning">⚠️ Il manque {{ order.quantity - reviews|length }} avis</span>
+                    <span class="badge badge-warning">⚠️ Il manque {{ order.quantity - reviews|length }} {% if order.order_type == 'forum' %}messages{% else %}avis{% endif %}</span>
                 {% else %}
                     <span class="badge badge-success">✅ Complet</span>
                 {% endif %}
             </div>
             
             <div class="add-review-section">
-                <h3>Ajouter un avis manuellement</h3>
+                <h3>Ajouter un{% if order.order_type == 'forum' %} message{% else %} avis{% endif %} manuellement</h3>
                 <form method="POST" action="{{ url_for('add_review', order_id=order.order_id) }}">
                     <div class="form-group">
-                        <label for="content">Contenu de l'avis</label>
-                        <textarea id="content" name="content" rows="4" required placeholder="Saisissez le texte de l'avis..."></textarea>
+                        <label for="content">Contenu {% if order.order_type == 'forum' %}du message{% else %}de l'avis{% endif %}</label>
+                        <textarea id="content" name="content" rows="4" required placeholder="Saisissez le texte..."></textarea>
                     </div>
+                    {% if order.order_type != 'forum' %}
                     <div class="form-group">
                         <label for="rating">Note (sur 5)</label>
                         <select id="rating" name="rating">
@@ -93,7 +108,8 @@
                             <option value="3.0">3.0 ⭐⭐⭐</option>
                         </select>
                     </div>
-                    <button type="submit" class="btn btn-primary">Ajouter l'avis</button>
+                    {% endif %}
+                    <button type="submit" class="btn btn-primary">Ajouter</button>
                 </form>
             </div>
             
@@ -101,9 +117,10 @@
                 <h3>📤 Importer depuis un fichier .txt</h3>
                 <form method="POST" action="{{ url_for('import_reviews', order_id=order.order_id) }}" enctype="multipart/form-data">
                     <div class="form-group">
-                        <label for="file">Fichier .txt (un avis par bloc, séparés par une ligne vide)</label>
+                        <label for="file">Fichier .txt (un {% if order.order_type == 'forum' %}message{% else %}avis{% endif %} par bloc, séparés par une ligne vide)</label>
                         <input type="file" id="file" name="file" accept=".txt" required>
                     </div>
+                    {% if order.order_type != 'forum' %}
                     <div class="form-group">
                         <label for="default_rating">Note par défaut</label>
                         <select id="default_rating" name="default_rating">
@@ -112,42 +129,45 @@
                             <option value="4.0">4.0 ⭐⭐⭐⭐</option>
                         </select>
                     </div>
+                    {% endif %}
                     <button type="submit" class="btn btn-secondary">Importer</button>
                 </form>
-                <p class="help-text">Format : Séparez chaque avis par une ligne vide dans le fichier .txt</p>
+                <p class="help-text">Format : Séparez chaque {% if order.order_type == 'forum' %}message{% else %}avis{% endif %} par une ligne vide dans le fichier .txt</p>
             </div>
         </section>
         
         <section class="section">
-            <h2>📝 Avis existants ({{ reviews|length }})</h2>
+            <h2>📝 {% if order.order_type == 'forum' %}Messages{% else %}Avis{% endif %} existants ({{ reviews|length }})</h2>
             
             {% if reviews %}
             <div class="reviews-list">
                 {% for review in reviews %}
                 <div class="review-card">
                     <div class="review-header">
-                        <strong>Avis #{{ loop.index }}</strong>
+                        <strong>{% if order.order_type == 'forum' %}Message{% else %}Avis{% endif %} #{{ loop.index }}</strong>
+                        {% if order.order_type != 'forum' %}
                         <span class="rating">{{ review.rating }}/5 ⭐</span>
+                        {% endif %}
                     </div>
                     <p class="review-content">{{ review.content }}</p>
                     <form method="POST" action="{{ url_for('delete_review_route', review_id=review.id) }}">
                         <input type="hidden" name="order_id" value="{{ order.order_id }}">
-                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Supprimer cet avis ?')">Supprimer</button>
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Supprimer ?')">Supprimer</button>
                     </form>
                 </div>
                 {% endfor %}
             </div>
             {% else %}
-            <p class="text-center">Aucun avis pour le moment. Ajoutez-en ci-dessus.</p>
+            <p class="text-center">Aucun {% if order.order_type == 'forum' %}message{% else %}avis{% endif %} pour le moment. Ajoutez-en ci-dessus.</p>
             {% endif %}
         </section>
         
         {% if reviews|length > 0 %}
         <section class="section distribute-section">
             <div class="info-box">
-                <h3>📋 Avis prêts pour traitement manuel</h3>
-                <p>Vous avez {{ reviews|length }} avis générés pour cette commande.</p>
-                <p><strong>Mode simplifié :</strong> Les avis sont prêts à être traités manuellement (Workers gérés indépendamment).</p>
+                <h3>📋 {% if order.order_type == 'forum' %}Messages{% else %}Avis{% endif %} prêts pour traitement manuel</h3>
+                <p>Vous avez {{ reviews|length }} {% if order.order_type == 'forum' %}messages{% else %}avis{% endif %} générés pour cette commande.</p>
+                <p><strong>Mode simplifié :</strong> Prêts à être traités manuellement (Workers gérés indépendamment).</p>
             </div>
         </section>
         {% endif %}

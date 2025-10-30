@@ -42,6 +42,7 @@
                         <th>Client Anonyme</th>
                         <th>Telegram</th>
                         <th>Type</th>
+                        <th>Plateforme</th>
                         <th>Quantité</th>
                         <th>Prix</th>
                         <th>Statut</th>
@@ -62,6 +63,13 @@
                                     <em>Pas de username</em>
                                 {% endif %}
                             </small>
+                        </td>
+                        <td>
+                            {% if order.order_type == 'forum' %}
+                                <span class="badge" style="background: #9b59b6;">💬 Forum</span>
+                            {% else %}
+                                <span class="badge" style="background: #3498db;">⭐ Avis</span>
+                            {% endif %}
                         </td>
                         <td>{{ order.platform }}</td>
                         <td>{{ order.quantity }}</td>
@@ -86,7 +94,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="8" class="text-center">Aucune commande</td>
+                        <td colspan="9" class="text-center">Aucune commande</td>
                     </tr>
                     {% endfor %}
                 </tbody>

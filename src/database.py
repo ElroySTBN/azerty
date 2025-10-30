@@ -137,6 +137,10 @@ def init_database():
         cursor.execute("ALTER TABLE orders ADD COLUMN payment_proof TEXT")
         logger.info("✅ Migration: Colonne 'payment_proof' ajoutée à la table orders")
     
+    if 'order_type' not in orders_columns:
+        cursor.execute("ALTER TABLE orders ADD COLUMN order_type TEXT DEFAULT 'reviews'")
+        logger.info("✅ Migration: Colonne 'order_type' ajoutée à la table orders")
+    
     cursor.execute("PRAGMA table_info(clients)")
     clients_columns = [col[1] for col in cursor.fetchall()]
     
@@ -195,7 +199,7 @@ def get_or_create_worker(telegram_id):
     conn.close()
     return dict(worker)
 
-def create_order(client_id, platform, quantity, target_link, brief):
+def create_order(client_id, platform, quantity, target_link, brief, order_type='reviews'):
     """Crée une nouvelle commande"""
     conn = get_db()
     cursor = conn.cursor()
@@ -204,9 +208,9 @@ def create_order(client_id, platform, quantity, target_link, brief):
     price = quantity * 5.0
     
     cursor.execute('''
-        INSERT INTO orders (order_id, client_id, platform, quantity, target_link, brief, price)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (order_id, client_id, platform, quantity, target_link, brief, price))
+        INSERT INTO orders (order_id, client_id, platform, quantity, target_link, brief, price, order_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (order_id, client_id, platform, quantity, target_link, brief, price, order_type))
     
     conn.commit()
     conn.close()
