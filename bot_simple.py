@@ -293,9 +293,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await query.edit_message_text(
-                f"{recap}📊 *Étape 2/4 : Quantité*\n\n"
+                f"{recap}📊 *Étape 2/4 : Quantité*\n"
                 f"Combien de messages souhaitez-vous ?\n"
-                f"💡 _Entrez simplement un nombre (ex: 15, 20)_",
+                f"💡 _Entrez simplement un nombre_",
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
@@ -313,9 +313,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await query.edit_message_text(
-                f"{recap}📊 *Étape 2/4 : Quantité*\n\n"
+                f"{recap}📊 *Étape 2/4 : Quantité*\n"
                 f"Combien de liens à supprimer ?\n"
-                f"💡 _Entrez simplement un nombre (ex: 3, 5)_",
+                f"💡 _Entrez simplement un nombre_",
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
@@ -335,9 +335,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(
-            f"{recap}📊 *Étape 2/4 : Quantité*\n\n"
+            f"{recap}📊 *Étape 2/4 : Quantité*\n"
             f"Combien d'avis souhaitez-vous ?\n"
-            f"💡 _Entrez simplement un nombre (ex: 15, 20, 50)_",
+            f"💡 _Entrez simplement un nombre_",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
@@ -404,10 +404,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(
-            f"{recap}✅ Lien ignoré\n\n"
-            f"📝 *Étape 4/4 : Détails supplémentaires (optionnel)*\n\n"
+            f"{recap}✅ Lien ignoré\n"
+            f"📝 *Étape 4/4 : Détails supplémentaires (optionnel)*\n"
             f"Avez-vous des précisions à ajouter ?\n"
-            f"💡 _Exemples : mots-clés, style souhaité, points à mentionner_\n\n"
+            f"💡 _Exemples : mots-clés, style souhaité, points à mentionner_\n"
             f"💡 _Si non, cliquez sur \"Passer cette étape\"_",
             reply_markup=reply_markup,
             parse_mode='Markdown'
@@ -523,9 +523,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
-                "❌ *Quantité invalide*\n\n"
+                "❌ *Quantité invalide*\n"
                 "Veuillez entrer uniquement un nombre.\n"
-                "💡 _Exemples valides : 15, 20, 50_",
+                "💡 _Exemples valides : 50, 100, 200_",
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
@@ -551,14 +551,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
-                f"{recap}🔗 *Étape 3/4 : Lien (obligatoire)*\n\n"
-                f"Veuillez partager le lien de votre établissement :\n"
-                f"💡 _Copiez-collez simplement le lien (Google Maps, Trustpilot, Pages Jaunes)_",
+                f"{recap}🔗 *Étape 3/4 : Lien (obligatoire)*\n"
+                f"Veuillez partager le lien de votre établissement.\n"
+                f"💡 _Copiez-collez simplement le lien_",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        elif service_type == 'forum':
+            # Pour forum, le lien est obligatoire
+            keyboard = [
+                [InlineKeyboardButton("🏠 Menu principal", callback_data="back_to_start")],
+                [InlineKeyboardButton("◀️ Modifier la quantité", callback_data=f"service:{service_type}")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(
+                f"{recap}🔗 *Étape 3/4 : Lien (obligatoire)*\n"
+                f"Veuillez partager le lien de votre établissement.\n"
+                f"💡 _Copiez-collez simplement le lien_",
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
         else:
-            # Pour forum et suppression, le lien est optionnel
+            # Pour suppression uniquement, le lien est optionnel
             state['step'] = 'details'
             
             keyboard = [
@@ -568,7 +583,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
-                f"{recap}🔗 *Étape 3/4 : Lien (optionnel)*\n\n"
+                f"{recap}🔗 *Étape 3/4 : Lien (optionnel)*\n"
                 f"Avez-vous un lien à partager ?\n"
                 f"💡 _Si non, cliquez sur \"Passer cette étape\"_",
                 reply_markup=reply_markup,
@@ -576,11 +591,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
     
     elif step == 'link':
-        # Pour les avis, le lien est obligatoire
+        # Pour les avis et forum, le lien est obligatoire
         service_type = state.get('service_type', '')
-        if service_type in ['google', 'trustpilot', 'pagesjaunes', 'autre_plateforme']:
+        if service_type in ['google', 'trustpilot', 'pagesjaunes', 'autre_plateforme', 'forum']:
             if message_text.lower() in ['non', 'skip', 'aucun', 'pas de lien']:
-                service_info = PRICING.get(service_type, {})
                 keyboard = [
                     [InlineKeyboardButton("🏠 Menu principal", callback_data="back_to_start")],
                     [InlineKeyboardButton("◀️ Retour", callback_data=f"service:{service_type}")]
@@ -588,10 +602,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 await update.message.reply_text(
-                    "❌ *Lien obligatoire*\n\n"
-                    "Pour les avis, le lien est requis pour traiter votre commande.\n"
-                    "Veuillez partager le lien de votre établissement :\n"
-                    "💡 _Copiez-collez le lien (Google Maps, Trustpilot, etc.)_",
+                    "❌ *Lien obligatoire*\n"
+                    "Le lien est requis pour traiter votre commande.\n"
+                    "Veuillez partager le lien de votre établissement.\n"
+                    "💡 _Copiez-collez le lien_",
                     reply_markup=reply_markup,
                     parse_mode='Markdown'
                 )
@@ -614,10 +628,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
-            f"{recap}✅ Lien enregistré !\n\n"
-            f"📝 *Étape 4/4 : Détails supplémentaires (optionnel)*\n\n"
+            f"{recap}✅ Lien enregistré !\n"
+            f"📝 *Étape 4/4 : Détails supplémentaires (optionnel)*\n"
             f"Avez-vous des précisions à ajouter ?\n"
-            f"💡 _Exemples : mots-clés, style souhaité, points à mentionner_\n\n"
+            f"💡 _Exemples : mots-clés, style souhaité, points à mentionner_\n"
             f"💡 _Si non, cliquez sur \"Passer cette étape\"_",
             reply_markup=reply_markup,
             parse_mode='Markdown'
