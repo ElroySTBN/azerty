@@ -461,9 +461,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 {final_recap}💰 *Prix estimé :* {price_text}
 
 ━━━━━━━━━━━━━━━━━━
-
 👨‍💼 *Un membre du support vous contactera dans les plus brefs délais.*
-
 Vous pouvez continuer à nous écrire ici pour toute question. Notre support vous répondra rapidement. 💬"""
 
         state['step'] = 'support_mode'
@@ -689,9 +687,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 {final_recap}💰 *Prix estimé :* {price_text}
 
 ━━━━━━━━━━━━━━━━━━
-
 👨‍💼 *Un membre du support vous contactera dans les plus brefs délais.*
-
 Vous pouvez continuer à nous écrire ici pour toute question. Notre support vous répondra rapidement. 💬"""
 
         state['step'] = 'support_mode'
