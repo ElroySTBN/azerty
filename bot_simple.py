@@ -182,15 +182,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_conversations[telegram_id]['service_type'] = 'forum'
             user_conversations[telegram_id]['step'] = 'quantity'
             
-            service_info = PRICING['forum']
-            
             await query.edit_message_text(
-                f"✅ Service sélectionné : **{service_info['name']}**\n"
-                f"💰 Prix unitaire : **{service_info['price']} {service_info['currency']}**\n"
-                f"🛡️ Garantie : {service_info['guarantee']}\n\n"
+                f"✅ **Messages sur forum**\n\n"
                 f"📊 **Étape 1/3 : Quantité**\n\n"
-                f"Combien de messages souhaitez-vous ?\n"
-                f"_(Répondez avec un nombre, ex: 5, 10, 20...)_",
+                f"Combien de messages souhaitez-vous ?",
                 parse_mode='Markdown'
             )
         
@@ -199,15 +194,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_conversations[telegram_id]['service_type'] = 'suppression'
             user_conversations[telegram_id]['step'] = 'quantity'
             
-            service_info = PRICING['suppression']
-            
             await query.edit_message_text(
-                f"✅ Service sélectionné : **{service_info['name']}**\n"
-                f"💰 Prix : **{service_info['price']}** (estimation sur mesure)\n"
-                f"🛡️ Garantie : {service_info['guarantee']}\n\n"
-                f"📊 **Étape 1/3 : Détails**\n\n"
-                f"Combien de liens à supprimer ?\n"
-                f"_(Répondez avec un nombre, ex: 1, 2, 3...)_",
+                f"✅ **Suppression de liens**\n\n"
+                f"📊 **Étape 1/3 : Quantité**\n\n"
+                f"Combien de liens à supprimer ?",
                 parse_mode='Markdown'
             )
     
@@ -219,12 +209,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         service_info = PRICING[service]
         
         await query.edit_message_text(
-            f"✅ Service sélectionné : **{service_info['name']}**\n"
-            f"💰 Prix unitaire : **{service_info['price']} {service_info['currency']}**\n"
-            f"🛡️ Garantie : {service_info['guarantee']}\n\n"
-            f"📊 **Étape 2/4 : Quantité**\n\n"
-            f"Combien d'{'avis' if service != 'forum' else 'messages'} souhaitez-vous environ ?\n"
-            f"_(Répondez avec un nombre ou une estimation, ex: 5, 10, 20...)_",
+            f"✅ **{service_info['name']}**\n\n"
+            f"📊 **Étape 1/3 : Quantité**\n\n"
+            f"Combien d'avis souhaitez-vous ?",
             parse_mode='Markdown'
         )
     
