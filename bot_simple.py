@@ -81,13 +81,31 @@ def _is_valid_quantity(text):
 def _resolve_db_path() -> str:
     """Retourne un chemin de DB écrivable en prod/local.
     - Priorité à DB_PATH si défini
-    - Tente /data/lebonmot_simple.db (Railway)
+    - Détecte Railway (variable RAILWAY_ENVIRONMENT) : force /data/lebonmot_simple.db
+    - Tente /data/lebonmot_simple.db (Railway persistent volume)
     - Sinon fallback: ./lebonmot_simple.db
     """
     override = os.getenv('DB_PATH')
     if override:
         os.makedirs(os.path.dirname(override) or '.', exist_ok=True)
+        logger.info(f"📁 DB_PATH override: {override}")
         return override
+
+    # Si on est sur Railway, FORCER l'utilisation de /data
+    if os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RAILWAY_PROJECT_ID'):
+        railway_db_path = "/data/lebonmot_simple.db"
+        try:
+            os.makedirs("/data", exist_ok=True)
+            # Vérifier qu'on peut écrire dans /data
+            test_file = "/data/.test_write"
+            with open(test_file, 'w') as f:
+                f.write('test')
+            os.remove(test_file)
+            logger.info(f"✅ Railway détecté : utilisation de /data/lebonmot_simple.db (volume persistant)")
+            return railway_db_path
+        except Exception as e:
+            logger.warning(f"⚠️ Impossible d'utiliser /data sur Railway: {e}")
+            # Continuer avec les fallbacks
 
     candidates = ["/data/lebonmot_simple.db", "./lebonmot_simple.db", "lebonmot_simple.db"]
     for path in candidates:
@@ -101,12 +119,18 @@ def _resolve_db_path() -> str:
                 with open(test_file, 'w') as f:
                     f.write('test')
                 os.remove(test_file)
+                logger.info(f"✅ Base de données sélectionnée : {path}")
                 return path
-            except (OSError, PermissionError):
+            except (OSError, PermissionError) as e:
+                logger.debug(f"❌ Impossible d'écrire dans {directory}: {e}")
                 continue
-        except Exception:
+        except Exception as e:
+            logger.debug(f"❌ Erreur avec {path}: {e}")
             continue
-    return "lebonmot_simple.db"
+    
+    fallback = "lebonmot_simple.db"
+    logger.warning(f"⚠️ Fallback vers : {fallback}")
+    return fallback
 
 DB_PATH = _resolve_db_path()
 
