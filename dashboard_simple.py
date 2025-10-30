@@ -1,5 +1,5 @@
 """
-Dashboard Admin Ultra-Simple - Le Bon Mot
+Dashboard Admin Ultra-Simple - RepuTech
 Gestion des conversations et réponses aux clients
 """
 from flask import Flask, render_template_string, request, redirect, session, jsonify

@@ -136,7 +136,7 @@ if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("\n👋 Arrêt du Bot Le Bon Mot...")
+        logger.info("\n👋 Arrêt du Bot RepuTech...")
     except Exception as e:
         logger.error(f"❌ Erreur fatale: {e}", exc_info=True)
 
