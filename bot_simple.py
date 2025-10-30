@@ -484,8 +484,7 @@ Que souhaitez-vous faire ?"""
 
         keyboard = [
             [InlineKeyboardButton("📝 Obtenir un devis", callback_data="new_quote")],
-            [InlineKeyboardButton("💬 Contacter le support", callback_data="contact_support")],
-            [InlineKeyboardButton("ℹ️ Nos garanties", callback_data="guarantees")]
+            [InlineKeyboardButton("💬 Contacter le support", callback_data="contact_support")]
         ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
