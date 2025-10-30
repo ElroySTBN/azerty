@@ -59,14 +59,12 @@ async def main():
         logger.info("="*70 + "\n")
         return
     
-    logger.info("🤖 Configuration du bot Telegram Client...")
-    client_app = setup_client_bot(CLIENT_BOT_TOKEN)
-    
+    # Démarrer Flask en priorité (il DOIT tourner pour Railway)
     logger.info("🌐 Démarrage du dashboard Flask...")
     flask_thread = Thread(target=run_flask_app, daemon=True)
     flask_thread.start()
     
-    logger.info("✅ Tous les services sont démarrés !")
+    logger.info("✅ Flask démarré !")
     logger.info("\n" + "="*50)
     logger.info("📊 Dashboard Admin: http://localhost:8081/admin")
     logger.info("🚀 Mini App: http://localhost:8081")
@@ -74,25 +72,38 @@ async def main():
     logger.info("   Password: admin123")
     logger.info("="*50 + "\n")
     
-    async with client_app:
-        await client_app.start()
-        await client_app.updater.start_polling()
+    # Démarrer le bot Telegram (si ça plante, Flask continue quand même)
+    try:
+        logger.info("🤖 Configuration du bot Telegram Client...")
+        client_app = setup_client_bot(CLIENT_BOT_TOKEN)
         
-        # Connecter le bot client au dashboard pour les notifications
-        loop = asyncio.get_event_loop()
-        set_client_bot(client_app, loop)
-        
-        logger.info("✅ Bot Client démarré et en écoute")
-        
-        logger.info("\n🎉 Marketplace opérationnelle !")
-        logger.info("Vous pouvez maintenant :")
-        logger.info("  - Accéder à la Mini App sur http://localhost:8081")
-        logger.info("  - Accéder au dashboard admin sur http://localhost:8081/admin")
-        logger.info("  - Parler au bot sur Telegram")
-        logger.info("\n⚠️  MODE SIMPLIFIÉ : Workers désactivés")
-        logger.info("   Vous gérez les commandes manuellement via le dashboard")
-        logger.info("\nAppuyez sur Ctrl+C pour arrêter\n")
-        
+        async with client_app:
+            await client_app.start()
+            await client_app.updater.start_polling()
+            
+            # Connecter le bot client au dashboard pour les notifications
+            loop = asyncio.get_event_loop()
+            set_client_bot(client_app, loop)
+            
+            logger.info("✅ Bot Client démarré et en écoute")
+            
+            logger.info("\n🎉 Marketplace opérationnelle !")
+            logger.info("Vous pouvez maintenant :")
+            logger.info("  - Accéder à la Mini App sur http://localhost:8081")
+            logger.info("  - Accéder au dashboard admin sur http://localhost:8081/admin")
+            logger.info("  - Parler au bot sur Telegram")
+            logger.info("\n⚠️  MODE SIMPLIFIÉ : Workers désactivés")
+            logger.info("   Vous gérez les commandes manuellement via le dashboard")
+            logger.info("\nAppuyez sur Ctrl+C pour arrêter\n")
+            
+            await asyncio.Event().wait()
+    except Exception as e:
+        logger.error(f"⚠️  Bot Telegram a planté: {e}")
+        logger.warning("Flask continue de tourner sans le bot Telegram")
+        logger.info("\n🎉 Mini App et Dashboard sont toujours accessibles !")
+        logger.info("  - Mini App: http://localhost:8081")
+        logger.info("  - Dashboard Admin: http://localhost:8081/admin")
+        # Garder Flask actif même si le bot plante
         await asyncio.Event().wait()
 
 if __name__ == '__main__':
