@@ -213,13 +213,15 @@ def save_message(telegram_id, message, sender='client'):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Commande /start - Affiche le message d'accueil"""
-    user = update.effective_user
-    telegram_id = user.id
-    
-    # Réinitialiser l'état de conversation
-    user_conversations[telegram_id] = {'step': 'menu'}
-    
-    welcome_text = f"""🔐 **RepuTech**
+    try:
+        logger.info(f"📥 Commande /start reçue de l'utilisateur {update.effective_user.id}")
+        user = update.effective_user
+        telegram_id = user.id
+        
+        # Réinitialiser l'état de conversation
+        user_conversations[telegram_id] = {'step': 'menu'}
+        
+        welcome_text = f"""🔐 **RepuTech**
 _Service Anonyme de E-réputation_
 
 ━━━━━━━━━━━━━━━━━━
@@ -241,9 +243,16 @@ Que souhaitez-vous faire aujourd'hui ?"""
         [InlineKeyboardButton("💬 Contacter le support", callback_data="contact_support")]
     ]
     
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
+        logger.info(f"✅ Message de bienvenue envoyé à l'utilisateur {telegram_id}")
+    except Exception as e:
+        logger.error(f"❌ Erreur dans start() : {e}", exc_info=True)
+        try:
+            await update.message.reply_text("❌ Une erreur est survenue. Veuillez réessayer.")
+        except:
+            pass
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Gère les boutons"""

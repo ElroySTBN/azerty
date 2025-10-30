@@ -68,16 +68,25 @@ async def main():
     # Démarrer le bot Telegram
     try:
         logger.info("\n🤖 Démarrage du bot Telegram...")
+        logger.info(f"🔑 Token utilisé : {CLIENT_BOT_TOKEN[:10]}...{CLIENT_BOT_TOKEN[-5:]}")
         bot_app = setup_simple_bot(CLIENT_BOT_TOKEN)
         
         async with bot_app:
             await bot_app.start()
+            
+            # Vérifier que le bot est bien connecté
+            bot_info = await bot_app.bot.get_me()
+            logger.info(f"✅ Bot connecté : @{bot_info.username} (ID: {bot_info.id})")
+            logger.info(f"   Nom : {bot_info.first_name}")
+            
             # Polling optimisé : intervalle raisonnable pour réduire CPU sans compromettre la réactivité
+            logger.info("📡 Démarrage du polling...")
             await bot_app.updater.start_polling(
                 poll_interval=3.0,  # 3 secondes entre les polls (bon compromis)
                 timeout=20,  # Timeout plus long
                 bootstrap_retries=-1  # Retries infinis en cas d'erreur temporaire
             )
+            logger.info("✅ Polling démarré - Le bot écoute maintenant les messages")
             
             # Connecter le bot au dashboard pour les réponses
             loop = asyncio.get_event_loop()
@@ -98,7 +107,7 @@ async def main():
             logger.info("\n" + "="*50)
             logger.info("🎉 REPUTECH - OPÉRATIONNEL !")
             logger.info("="*50)
-            logger.info(f"\n📱 Bot Telegram : @{(await bot_app.bot.get_me()).username}")
+            logger.info(f"\n📱 Bot Telegram : @{bot_info.username}")
             logger.info(f"📊 Dashboard Admin : http://localhost:{os.getenv('PORT', 8081)}")
             logger.info("\n💡 Tout est prêt ! Les clients peuvent commander.")
             logger.info("   Vous gérez les devis depuis le dashboard.\n")
