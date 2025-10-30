@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 # Grille tarifaire
 PRICING = {
-    'google': {'price': 18, 'currency': 'EUR', 'name': 'Avis Google', 'guarantee': '6 mois non-drop + replacement gratuit'},
-    'trustpilot': {'price': 16, 'currency': 'EUR', 'name': 'Trustpilot', 'guarantee': '1 an non-drop'},
-    'forum': {'price': 5, 'currency': 'EUR', 'name': 'Message Forum', 'guarantee': 'Qualité garantie'},
-    'pagesjaunes': {'price': 15, 'currency': 'EUR', 'name': 'Pages Jaunes', 'guarantee': 'Non-drop garanti'},
-    'autre_plateforme': {'price': 15, 'currency': 'EUR', 'name': 'Autre plateforme', 'guarantee': 'Selon plateforme'},
-    'suppression': {'price': 'Sur devis', 'currency': '', 'name': 'Suppression de liens', 'guarantee': 'Travail sur mesure'}
+    'google': {'price': 18, 'currency': 'EUR', 'name': 'Avis Google'},
+    'trustpilot': {'price': 16, 'currency': 'EUR', 'name': 'Trustpilot'},
+    'forum': {'price': 5, 'currency': 'EUR', 'name': 'Message Forum'},
+    'pagesjaunes': {'price': 15, 'currency': 'EUR', 'name': 'Pages Jaunes'},
+    'autre_plateforme': {'price': 15, 'currency': 'EUR', 'name': 'Autre plateforme'},
+    'suppression': {'price': 'Sur devis', 'currency': '', 'name': 'Suppression de liens'}
 }
 
 # État des conversations
@@ -34,28 +34,28 @@ def _get_recap(state):
     
     recap = "━━━━━━━━━━━━━━━━━━\n"
     recap += "*📋 Récapitulatif*\n"
-    recap += "━━━━━━━━━━━━━━━━━━\n\n"
+    recap += "━━━━━━━━━━━━━━━━━━\n"
     
     service_type = state.get('service_type')
     if service_type:
         service_info = PRICING.get(service_type, {})
-        recap += f"🔹 Service : *{service_info.get('name', service_type)}*\n"
+        recap += f"\n🔹 Service : *{service_info.get('name', service_type)}*"
     
     quantity = state.get('quantity')
     if quantity:
-        recap += f"🔹 Quantité : *{quantity}*\n"
+        recap += f"\n🔹 Quantité : *{quantity}*"
     
     link = state.get('link')
     if link and link != 'Aucun':
         display_link = link[:50] + "..." if len(link) > 50 else link
-        recap += f"🔹 Lien : {display_link}\n"
+        recap += f"\n🔹 Lien : {display_link}"
     
     details = state.get('details')
     if details and details != 'Aucun détail supplémentaire':
         display_details = details[:50] + "..." if len(details) > 50 else details
-        recap += f"🔹 Détails : {display_details}\n"
+        recap += f"\n🔹 Détails : {display_details}"
     
-    recap += "\n"
+    recap += "\n\n"
     return recap
 
 def _is_valid_quantity(text):
@@ -286,7 +286,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_conversations[telegram_id]['step'] = 'quantity'
             recap = _get_recap(user_conversations[telegram_id])
             
-            service_info = PRICING['forum']
             keyboard = [
                 [InlineKeyboardButton("🏠 Menu principal", callback_data="back_to_start")],
                 [InlineKeyboardButton("◀️ Retour", callback_data="new_quote")]
@@ -294,10 +293,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await query.edit_message_text(
-                f"{recap}✅ *Messages sur forum*\n\n"
-                f"💰 Prix : *{service_info['price']} {service_info['currency']}*\n"
-                f"✅ {service_info['guarantee']}\n\n"
-                f"📊 *Étape 2/4 : Quantité*\n\n"
+                f"{recap}📊 *Étape 2/4 : Quantité*\n\n"
                 f"Combien de messages souhaitez-vous ?\n"
                 f"💡 _Entrez simplement un nombre (ex: 15, 20)_",
                 reply_markup=reply_markup,
@@ -310,7 +306,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_conversations[telegram_id]['step'] = 'quantity'
             recap = _get_recap(user_conversations[telegram_id])
             
-            service_info = PRICING['suppression']
             keyboard = [
                 [InlineKeyboardButton("🏠 Menu principal", callback_data="back_to_start")],
                 [InlineKeyboardButton("◀️ Retour", callback_data="new_quote")]
@@ -318,10 +313,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await query.edit_message_text(
-                f"{recap}✅ *Suppression de liens*\n\n"
-                f"💰 Prix : *{service_info['price']}*\n"
-                f"✅ {service_info['guarantee']}\n\n"
-                f"📊 *Étape 2/4 : Quantité*\n\n"
+                f"{recap}📊 *Étape 2/4 : Quantité*\n\n"
                 f"Combien de liens à supprimer ?\n"
                 f"💡 _Entrez simplement un nombre (ex: 3, 5)_",
                 reply_markup=reply_markup,
@@ -335,8 +327,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         service_info = PRICING[service]
         recap = _get_recap(user_conversations[telegram_id])
-        price_info = f"{service_info['price']} {service_info['currency']}" if service_info['price'] != 'Sur devis' else "Sur devis"
-        guarantee_emoji = "🛡️" if "garanti" in service_info['guarantee'].lower() or "non-drop" in service_info['guarantee'].lower() else "✅"
         
         keyboard = [
             [InlineKeyboardButton("🏠 Menu principal", callback_data="back_to_start")],
@@ -345,10 +335,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(
-            f"{recap}✅ *{service_info['name']}*\n\n"
-            f"💰 Prix : *{price_info}*\n"
-            f"{guarantee_emoji} {service_info['guarantee']}\n\n"
-            f"📊 *Étape 2/4 : Quantité*\n\n"
+            f"{recap}📊 *Étape 2/4 : Quantité*\n\n"
             f"Combien d'avis souhaitez-vous ?\n"
             f"💡 _Entrez simplement un nombre (ex: 15, 20, 50)_",
             reply_markup=reply_markup,
@@ -409,15 +396,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         state['step'] = 'details'
         
         recap = _get_recap(state)
-        service_type = state.get('service_type', '')
-        service_info = PRICING.get(service_type, {})
-        quantity = state.get('quantity', '?')
-        
-        try:
-            qty_num = int(quantity)
-            estimated_total = qty_num * service_info.get('price', 0) if isinstance(service_info.get('price'), int) else 0
-        except:
-            estimated_total = 0
         
         keyboard = [
             [InlineKeyboardButton("🏠 Menu principal", callback_data="back_to_start")],
@@ -425,11 +403,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        cta_final = f"🎯 *Dernière étape ! Votre commande est presque terminée.*" if estimated_total > 0 else ""
-        
         await query.edit_message_text(
             f"{recap}✅ Lien ignoré\n\n"
-            f"{cta_final}\n\n" if cta_final else ""
             f"📝 *Étape 4/4 : Détails supplémentaires (optionnel)*\n\n"
             f"Avez-vous des précisions à ajouter ?\n"
             f"💡 _Exemples : mots-clés, style souhaité, points à mentionner_\n\n"
@@ -484,7 +459,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         recap_final = f"""✅ *Devis généré avec succès !*
 
 {final_recap}💰 *Prix estimé :* {price_text}
-🛡️ *Garantie :* {service_info['guarantee']}
 
 ━━━━━━━━━━━━━━━━━━
 
@@ -570,21 +544,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Pour les avis, le lien est obligatoire
         if service_type in ['google', 'trustpilot', 'pagesjaunes', 'autre_plateforme']:
-            service_info = PRICING.get(service_type, {})
-            estimated_total = int(quantity_value) * service_info.get('price', 0) if isinstance(service_info.get('price'), int) else 0
-            
             keyboard = [
                 [InlineKeyboardButton("🏠 Menu principal", callback_data="back_to_start")],
                 [InlineKeyboardButton("◀️ Modifier la quantité", callback_data=f"service:{service_type}")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            cta_message = f"🚀 *Plus que 2 étapes pour finaliser votre commande !*" if estimated_total > 0 else ""
-            
             await update.message.reply_text(
-                f"{recap}✅ Quantité notée : *{quantity_value}*\n"
-                f"{'💰 Estimation : *' + str(estimated_total) + ' EUR*' if estimated_total > 0 else ''}\n\n"
-                f"{cta_message}\n\n" if cta_message else ""
+                f"{recap}✅ Quantité notée : *{quantity_value}*\n\n"
                 f"🔗 *Étape 3/4 : Lien (obligatoire)*\n\n"
                 f"Veuillez partager le lien de votre établissement :\n"
                 f"💡 _Copiez-collez simplement le lien (Google Maps, Trustpilot, Pages Jaunes)_",
@@ -641,15 +608,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         state['step'] = 'details'
         
         recap = _get_recap(state)
-        service_info = PRICING.get(service_type, {})
-        quantity = state.get('quantity', '?')
-        
-        # Calculer le total pour CTA
-        try:
-            qty_num = int(quantity)
-            estimated_total = qty_num * service_info.get('price', 0) if isinstance(service_info.get('price'), int) else 0
-        except:
-            estimated_total = 0
         
         keyboard = [
             [InlineKeyboardButton("🏠 Menu principal", callback_data="back_to_start")],
@@ -657,11 +615,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        cta_final = f"🎯 *Dernière étape ! Votre commande est presque terminée.*" if estimated_total > 0 else ""
-        
         await update.message.reply_text(
             f"{recap}✅ Lien enregistré !\n\n"
-            f"{cta_final}\n\n" if cta_final else ""
             f"📝 *Étape 4/4 : Détails supplémentaires (optionnel)*\n\n"
             f"Avez-vous des précisions à ajouter ?\n"
             f"💡 _Exemples : mots-clés, style souhaité, points à mentionner_\n\n"
