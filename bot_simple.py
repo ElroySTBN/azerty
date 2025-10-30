@@ -206,10 +206,6 @@ _Service Anonyme de E-réputation_
 ✅ Délai moyen : 48-72h
 ━━━━━━━━━━━━━━━━━━
 
-Bonjour {user.first_name} ! 👋
-
-🚀 *Commandez en 4 étapes simples !*
-
 Que souhaitez-vous faire aujourd'hui ?"""
 
     keyboard = [
@@ -549,7 +545,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             await update.message.reply_text(
                 f"{recap}🔗 *Étape 3/4 : Lien (obligatoire)*\n"
-                f"Veuillez partager le lien de votre établissement.\n"
+                f"Veuillez partager le lien de l'établissement.\n"
                 f"💡 _Copiez-collez simplement le lien_",
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
@@ -564,7 +560,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             await update.message.reply_text(
                 f"{recap}🔗 *Étape 3/4 : Lien (obligatoire)*\n"
-                f"Veuillez partager le lien de votre établissement.\n"
+                f"Veuillez partager le lien de l'établissement.\n"
                 f"💡 _Copiez-collez simplement le lien_",
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
