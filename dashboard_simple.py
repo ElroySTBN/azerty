@@ -1,5 +1,5 @@
 """
-Dashboard Admin Ultra-Simple - RepuTech
+Dashboard Admin Ultra-Simple - Reputalys
 Gestion des conversations et réponses aux clients
 """
 from flask import Flask, render_template_string, request, redirect, session, jsonify
@@ -45,7 +45,7 @@ def login_required(f):
 @app.route('/health')
 def health():
     """Endpoint de santé pour Railway"""
-    return jsonify({'status': 'healthy', 'service': 'RepuTech'}), 200
+    return jsonify({'status': 'healthy', 'service': 'Reputalys'}), 200
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -299,7 +299,7 @@ LOGIN_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Login - RepuTech Admin</title>
+    <title>Login - Reputalys Admin</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -344,7 +344,7 @@ LOGIN_TEMPLATE = '''
 </head>
 <body>
     <div class="login-box">
-        <h1>🔐 RepuTech Admin</h1>
+        <h1>🔐 Reputalys Admin</h1>
         {% if error %}<p class="error">{{ error }}</p>{% endif %}
         <form method="POST">
             <input type="password" name="password" placeholder="Mot de passe" required autofocus>
@@ -359,7 +359,7 @@ DASHBOARD_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Dashboard - RepuTech</title>
+    <title>Dashboard - Reputalys</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -508,7 +508,7 @@ DASHBOARD_TEMPLATE = '''
 <body>
     <div class="header">
         <div class="header-content">
-            <h1>📊 RepuTech - Admin Dashboard</h1>
+            <h1>📊 Reputalys - Admin Dashboard</h1>
             <a href="/logout" class="btn-logout">Déconnexion</a>
         </div>
     </div>
@@ -693,7 +693,7 @@ CONVERSATION_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Conversation - RepuTech</title>
+    <title>Conversation - Reputalys</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }

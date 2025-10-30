@@ -221,7 +221,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Réinitialiser l'état de conversation
         user_conversations[telegram_id] = {'step': 'menu'}
         
-        welcome_text = f"""🔐 **RepuTech**
+        welcome_text = f"""🔐 **Reputalys**
 _Service Anonyme de E-réputation_
 
 ━━━━━━━━━━━━━━━━━━
@@ -519,7 +519,7 @@ Vous pouvez continuer à nous écrire ici pour toute question. Notre support vou
     elif data == "back_to_start":
         user_conversations[telegram_id] = {'step': 'menu'}
         
-        welcome_text = f"""🔐 *RepuTech*
+        welcome_text = f"""🔐 *Reputalys*
 _Service Anonyme de E-réputation_
 
 ━━━━━━━━━━━━━━━━━━

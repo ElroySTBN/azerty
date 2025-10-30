@@ -1,6 +1,6 @@
 # 🤖 Guide : Changer de Bot Telegram
 
-Ce guide vous explique comment créer un nouveau bot Telegram et le configurer pour RepuTech.
+Ce guide vous explique comment créer un nouveau bot Telegram et le configurer pour Reputalys.
 
 ---
 
@@ -17,7 +17,7 @@ Ce guide vous explique comment créer un nouveau bot Telegram et le configurer p
 
 4. **Donnez un nom à votre bot** (ce que les utilisateurs verront) :
    ```
-   RepuTech
+   Reputalys
    ```
 
 5. **Choisissez un nom d'utilisateur** (doit se terminer par `bot`, exemple : `reputech_bot` ou `reputechbot`) :
@@ -65,14 +65,14 @@ Ce guide vous explique comment créer un nouveau bot Telegram et le configurer p
    
    Vous devriez voir :
    ```
-   🚀 Démarrage du Bot RepuTech - Version Simple...
+   🚀 Démarrage du Bot Reputalys - Version Simple...
    ✅ Bot Telegram démarré et connecté !
    ```
 
 5. **Testez le bot** :
    - Recherchez votre bot sur Telegram (par son nom d'utilisateur, ex: `@reputech_bot`)
    - Envoyez `/start`
-   - Vous devriez recevoir le message de bienvenue "🔐 **RepuTech**"
+   - Vous devriez recevoir le message de bienvenue "🔐 **Reputalys**"
 
 ---
 
@@ -80,7 +80,7 @@ Ce guide vous explique comment créer un nouveau bot Telegram et le configurer p
 
 1. **Connectez-vous à Railway** : https://railway.app
 
-2. **Sélectionnez votre projet** RepuTech
+2. **Sélectionnez votre projet** Reputalys
 
 3. **Allez dans "Variables"** (ou "Environment Variables")
 
@@ -98,7 +98,7 @@ Ce guide vous explique comment créer un nouveau bot Telegram et le configurer p
 
 8. **Vérifiez que ça fonctionne** :
    - Attendez que le déploiement se termine (vérifiez les logs)
-   - Testez votre bot sur Telegram : il devrait répondre avec le nouveau nom "RepuTech"
+   - Testez votre bot sur Telegram : il devrait répondre avec le nouveau nom "Reputalys"
 
 ---
 
@@ -106,7 +106,7 @@ Ce guide vous explique comment créer un nouveau bot Telegram et le configurer p
 
 ### Sur Telegram :
 - ✅ Le bot répond aux commandes `/start`
-- ✅ Le message de bienvenue affiche "🔐 **RepuTech**"
+- ✅ Le message de bienvenue affiche "🔐 **Reputalys**"
 - ✅ Le bot fonctionne normalement
 
 ### Sur Railway :
@@ -143,5 +143,5 @@ Ce guide vous explique comment créer un nouveau bot Telegram et le configurer p
 
 ---
 
-**✅ Une fois terminé, votre nouveau bot RepuTech est prêt à être utilisé !**
+**✅ Une fois terminé, votre nouveau bot Reputalys est prêt à être utilisé !**
 

@@ -41,7 +41,7 @@ def run_flask():
 
 async def main():
     """Point d'entrée principal"""
-    logger.info("🚀 Démarrage du Bot RepuTech - Version Simple...")
+    logger.info("🚀 Démarrage du Bot Reputalys - Version Simple...")
     
     # Token du bot
     CLIENT_BOT_TOKEN = os.getenv('CLIENT_BOT_TOKEN')
@@ -104,7 +104,7 @@ async def main():
                 logger.info(f"   Taille : {size} octets ({size/1024:.2f} KB)")
             
             logger.info("\n" + "="*50)
-            logger.info("🎉 REPUTECH - OPÉRATIONNEL !")
+            logger.info("🎉 REPUTALYS - OPÉRATIONNEL !")
             logger.info("="*50)
             logger.info(f"\n📱 Bot Telegram : @{bot_info.username}")
             logger.info(f"📊 Dashboard Admin : http://localhost:{os.getenv('PORT', 8081)}")
@@ -144,7 +144,7 @@ if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("\n👋 Arrêt du Bot RepuTech...")
+        logger.info("\n👋 Arrêt du Bot Reputalys...")
     except Exception as e:
         logger.error(f"❌ Erreur fatale: {e}", exc_info=True)
 
