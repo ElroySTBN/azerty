@@ -9,20 +9,17 @@ from datetime import datetime
 import asyncio
 import os
 
-# Importer DB_PATH depuis bot_simple pour utiliser le même chemin
-from bot_simple import DB_PATH
+# Importer DB_PATH et fonctions de connexion depuis bot_simple
+from bot_simple import DB_PATH, USE_SUPABASE, _connect, _execute
+if USE_SUPABASE:
+    from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'lebonmot-secret-key-2024')
 
 def _connect_db():
-    """Connexion SQLite optimisée avec les mêmes optimisations que bot_simple"""
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.execute('PRAGMA synchronous=NORMAL')
-    conn.execute('PRAGMA cache_size=-5000')
-    conn.execute('PRAGMA temp_store=MEMORY')
-    conn.execute('PRAGMA foreign_keys=ON')
-    return conn
+    """Connexion à la base de données (Supabase PostgreSQL ou SQLite)"""
+    return _connect()
 
 # Référence au bot pour envoyer des messages
 bot_app = None
@@ -70,11 +67,14 @@ def dashboard():
     
     # Connexion optimisée
     conn = _connect_db()
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    if USE_SUPABASE:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    else:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
     
     # Stats globales optimisées (une seule requête au lieu de 3)
-    cursor.execute('''
+    _execute(cursor, '''
         SELECT 
             COUNT(CASE WHEN service_type IS NOT NULL THEN 1 END) as total_orders,
             COUNT(DISTINCT telegram_id) as total_clients,
@@ -87,7 +87,7 @@ def dashboard():
     total_messages = stats_row['total_messages'] or 0
     
     # Requête optimisée pour conversations avec LEFT JOIN au lieu de sous-requêtes
-    cursor.execute('''
+    _execute(cursor, '''
         SELECT 
             c.*,
             COUNT(m.id) as message_count,
@@ -101,7 +101,7 @@ def dashboard():
     conversations = cursor.fetchall()
     
     # Requête simple pour les commandes
-    cursor.execute('''
+    _execute(cursor, '''
         SELECT *
         FROM conversations
         WHERE service_type IS NOT NULL
@@ -130,18 +130,21 @@ def dashboard():
 def conversation(conv_id):
     """Affiche une conversation spécifique"""
     conn = _connect_db()
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    if USE_SUPABASE:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    else:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
     
     # Infos de la conversation
-    cursor.execute('SELECT * FROM conversations WHERE id = ?', (conv_id,))
+    _execute(cursor, 'SELECT * FROM conversations WHERE id = ?', (conv_id,))
     conv = cursor.fetchone()
     
     if not conv:
         return "Conversation introuvable", 404
     
     # Messages de la conversation
-    cursor.execute('''
+    _execute(cursor, '''
         SELECT * FROM messages 
         WHERE conversation_id = ? 
         ORDER BY created_at ASC
@@ -163,18 +166,21 @@ def reply(conv_id):
     
     # Récupérer le telegram_id
     conn = _connect_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
+    if USE_SUPABASE:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    else:
+        cursor = conn.cursor()
+    _execute(cursor, 'SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
     result = cursor.fetchone()
     
     if not result:
         conn.close()
         return jsonify({'error': 'Conversation introuvable'}), 404
     
-    telegram_id = result[0]
+    telegram_id = result['telegram_id'] if USE_SUPABASE else result[0]
     
     # Sauvegarder le message en DB
-    cursor.execute('''
+    _execute(cursor, '''
         INSERT INTO messages (conversation_id, telegram_id, message, sender)
         VALUES (?, ?, ?, ?)
     ''', (conv_id, telegram_id, message, 'admin'))
@@ -250,8 +256,12 @@ N'hésitez pas si vous avez des questions !'''
     
     # Récupérer le telegram_id et infos commande pour remplacer les variables
     conn = _connect_db()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM conversations WHERE id = ?', (conv_id,))
+    if USE_SUPABASE:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    else:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+    _execute(cursor, 'SELECT * FROM conversations WHERE id = ?', (conv_id,))
     conv = cursor.fetchone()
     
     if not conv:
@@ -269,7 +279,7 @@ N'hésitez pas si vous avez des questions !'''
     message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
     
     # Sauvegarder le message en DB
-    cursor.execute('''
+    _execute(cursor, '''
         INSERT INTO messages (conversation_id, telegram_id, message, sender)
         VALUES (?, ?, ?, ?)
     ''', (conv_id, telegram_id, message, 'admin'))

@@ -9,6 +9,17 @@ from datetime import datetime
 import sqlite3
 import os
 
+# Support Supabase (PostgreSQL)
+USE_SUPABASE = bool(os.getenv('SUPABASE_URL'))
+if USE_SUPABASE:
+    try:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+        logger.info("✅ Supabase (PostgreSQL) détecté")
+    except ImportError:
+        logger.warning("⚠️ psycopg2-binary non installé, utilisation de SQLite")
+        USE_SUPABASE = False
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -135,52 +146,149 @@ def _resolve_db_path() -> str:
 DB_PATH = _resolve_db_path()
 
 # Log du chemin DB utilisé au démarrage
-logger.info(f"📁 Base de données : {DB_PATH} (abs: {os.path.abspath(DB_PATH)})")
+if USE_SUPABASE:
+    logger.info("📁 Base de données : Supabase (PostgreSQL)")
+else:
+    logger.info(f"📁 Base de données : {DB_PATH} (abs: {os.path.abspath(DB_PATH)})")
 
 def _connect():
-    """Connexion SQLite optimisée (sans WAL pour éviter problèmes de persistance)"""
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    # Optimisations sûres qui ne compromettent pas la persistance
-    conn.execute('PRAGMA synchronous=NORMAL')  # Bon compromis vitesse/sécurité
-    conn.execute('PRAGMA cache_size=-5000')  # 5MB de cache (raisonnable)
-    conn.execute('PRAGMA temp_store=MEMORY')  # Tables temporaires en RAM
-    conn.execute('PRAGMA foreign_keys=ON')  # Activer les clés étrangères
-    return conn
+    """Connexion à la base de données (Supabase PostgreSQL ou SQLite)"""
+    if USE_SUPABASE:
+        # Connexion Supabase (PostgreSQL)
+        try:
+            supabase_url = os.getenv('SUPABASE_URL')
+            # Format: postgresql://user:password@host:port/database
+            # Ou utiliser les variables séparées
+            db_host = os.getenv('SUPABASE_DB_HOST')
+            db_port = os.getenv('SUPABASE_DB_PORT', '5432')
+            db_name = os.getenv('SUPABASE_DB_NAME')
+            db_user = os.getenv('SUPABASE_DB_USER')
+            db_password = os.getenv('SUPABASE_DB_PASSWORD')
+            
+            if supabase_url:
+                conn = psycopg2.connect(supabase_url)
+            elif db_host and db_name and db_user and db_password:
+                conn = psycopg2.connect(
+                    host=db_host,
+                    port=db_port,
+                    database=db_name,
+                    user=db_user,
+                    password=db_password
+                )
+            else:
+                raise ValueError("Variables Supabase manquantes")
+            
+            conn.autocommit = False
+            return conn
+        except Exception as e:
+            logger.error(f"❌ Erreur connexion Supabase: {e}")
+            raise
+    else:
+        # Connexion SQLite optimisée (sans WAL pour éviter problèmes de persistance)
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        # Optimisations sûres qui ne compromettent pas la persistance
+        conn.execute('PRAGMA synchronous=NORMAL')  # Bon compromis vitesse/sécurité
+        conn.execute('PRAGMA cache_size=-5000')  # 5MB de cache (raisonnable)
+        conn.execute('PRAGMA temp_store=MEMORY')  # Tables temporaires en RAM
+        conn.execute('PRAGMA foreign_keys=ON')  # Activer les clés étrangères
+        return conn
+
+def _execute(cursor, query, params=None):
+    """Exécute une requête en adaptant les placeholders selon le type de DB"""
+    if USE_SUPABASE:
+        # PostgreSQL utilise %s au lieu de ?
+        if params:
+            return cursor.execute(query.replace('?', '%s'), params)
+        else:
+            return cursor.execute(query.replace('?', '%s'))
+    else:
+        # SQLite utilise ?
+        if params:
+            return cursor.execute(query, params)
+        else:
+            return cursor.execute(query)
 
 def init_simple_db():
-    """Initialise une base de données ultra-simple"""
+    """Initialise une base de données ultra-simple (Supabase PostgreSQL ou SQLite)"""
     conn = _connect()
     cursor = conn.cursor()
     
-    # Table des conversations
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS conversations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            telegram_id INTEGER NOT NULL,
-            username TEXT,
-            first_name TEXT,
-            service_type TEXT,
-            quantity TEXT,
-            link TEXT,
-            details TEXT,
-            estimated_price TEXT,
-            status TEXT DEFAULT 'active',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Table des messages
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            conversation_id INTEGER,
-            telegram_id INTEGER NOT NULL,
-            message TEXT NOT NULL,
-            sender TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (conversation_id) REFERENCES conversations(id)
-        )
-    ''')
+    if USE_SUPABASE:
+        # Schéma PostgreSQL (Supabase)
+        # Table des conversations
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS conversations (
+                id SERIAL PRIMARY KEY,
+                telegram_id BIGINT NOT NULL,
+                username TEXT,
+                first_name TEXT,
+                service_type TEXT,
+                quantity TEXT,
+                link TEXT,
+                details TEXT,
+                estimated_price TEXT,
+                status TEXT DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Table des messages
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS messages (
+                id SERIAL PRIMARY KEY,
+                conversation_id INTEGER,
+                telegram_id BIGINT NOT NULL,
+                message TEXT NOT NULL,
+                sender TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+            )
+        ''')
+        
+        # Créer les index pour améliorer les performances
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_conversations_telegram_id 
+            ON conversations(telegram_id)
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_messages_conversation_id 
+            ON messages(conversation_id)
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_messages_telegram_id 
+            ON messages(telegram_id)
+        ''')
+    else:
+        # Schéma SQLite
+        # Table des conversations
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS conversations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_id INTEGER NOT NULL,
+                username TEXT,
+                first_name TEXT,
+                service_type TEXT,
+                quantity TEXT,
+                link TEXT,
+                details TEXT,
+                estimated_price TEXT,
+                status TEXT DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Table des messages
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                conversation_id INTEGER,
+                telegram_id INTEGER NOT NULL,
+                message TEXT NOT NULL,
+                sender TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+            )
+        ''')
     
     conn.commit()
     conn.close()
@@ -191,25 +299,36 @@ def save_message(telegram_id, message, sender='client'):
     conn = _connect()
     cursor = conn.cursor()
     
-    # Trouver ou créer la conversation
-    cursor.execute('SELECT id FROM conversations WHERE telegram_id = ? ORDER BY created_at DESC LIMIT 1', (telegram_id,))
-    result = cursor.fetchone()
-    
-    if result:
-        conversation_id = result[0]
-    else:
-        # Créer une nouvelle conversation
-        cursor.execute('INSERT INTO conversations (telegram_id) VALUES (?)', (telegram_id,))
-        conversation_id = cursor.lastrowid
-    
-    # Sauvegarder le message
-    cursor.execute('''
-        INSERT INTO messages (conversation_id, telegram_id, message, sender)
-        VALUES (?, ?, ?, ?)
-    ''', (conversation_id, telegram_id, message, sender))
-    
-    conn.commit()
-    conn.close()
+    try:
+        # Trouver ou créer la conversation
+        _execute(cursor, 'SELECT id FROM conversations WHERE telegram_id = ? ORDER BY created_at DESC LIMIT 1', (telegram_id,))
+        result = cursor.fetchone()
+        
+        if result:
+            conversation_id = result[0]
+        else:
+            # Créer une nouvelle conversation
+            _execute(cursor, 'INSERT INTO conversations (telegram_id) VALUES (?)', (telegram_id,))
+            if USE_SUPABASE:
+                # PostgreSQL retourne l'ID différemment
+                cursor.execute('SELECT LASTVAL()')
+                conversation_id = cursor.fetchone()[0]
+            else:
+                conversation_id = cursor.lastrowid
+        
+        # Sauvegarder le message
+        _execute(cursor, '''
+            INSERT INTO messages (conversation_id, telegram_id, message, sender)
+            VALUES (?, ?, ?, ?)
+        ''', (conversation_id, telegram_id, message, sender))
+        
+        conn.commit()
+    except Exception as e:
+        logger.error(f"Erreur save_message: {e}")
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Commande /start - Affiche le message d'accueil"""
@@ -379,14 +498,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         conn = _connect()
         try:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+            if USE_SUPABASE:
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+            else:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
             
             # Debug : vérifier toutes les conversations de cet utilisateur
-            cursor.execute('SELECT COUNT(*) as total FROM conversations WHERE telegram_id = ?', (telegram_id,))
-            total_conv = cursor.fetchone()['total']
+            _execute(cursor, 'SELECT COUNT(*) as total FROM conversations WHERE telegram_id = ?', (telegram_id,))
+            if USE_SUPABASE:
+                total_conv = cursor.fetchone()['total']
+            else:
+                total_conv = cursor.fetchone()['total']
             
-            cursor.execute('''
+            _execute(cursor, '''
                 SELECT * FROM conversations 
                 WHERE telegram_id = ? AND service_type IS NOT NULL AND service_type != ''
                 ORDER BY created_at DESC
@@ -407,7 +532,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 service_name = PRICING.get(order['service_type'], {}).get('name', order['service_type'])
                 orders_text += f"• **{service_name}** - {order['quantity']}\n"
                 orders_text += f"  💰 {order['estimated_price']}\n"
-                orders_text += f"  📅 {order['created_at'][:10]}\n\n"
+                created_at = str(order['created_at'])
+                orders_text += f"  📅 {created_at[:10]}\n\n"
             
             orders_text += "\n💬 Pour toute question, contactez le support !"
         else:
@@ -482,7 +608,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn = _connect()
         try:
             cursor = conn.cursor()
-            cursor.execute('''
+            _execute(cursor, '''
                 INSERT INTO conversations (telegram_id, username, first_name, service_type, quantity, link, details, estimated_price)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (telegram_id, state.get('username'), state.get('first_name'), 
@@ -711,7 +837,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn = _connect()
         try:
             cursor = conn.cursor()
-            cursor.execute('''
+            _execute(cursor, '''
                 INSERT INTO conversations (telegram_id, username, first_name, service_type, quantity, link, details, estimated_price)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (telegram_id, state.get('username'), state.get('first_name'), 
