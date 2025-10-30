@@ -342,18 +342,28 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_conversations[telegram_id]['step'] = 'viewing_orders'
         
         conn = _connect()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT * FROM conversations 
-            WHERE telegram_id = ? AND service_type IS NOT NULL
-            ORDER BY created_at DESC
-            LIMIT 5
-        ''', (telegram_id,))
-        
-        orders = cursor.fetchall()
-        conn.close()
+        try:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            # Debug : vérifier toutes les conversations de cet utilisateur
+            cursor.execute('SELECT COUNT(*) as total FROM conversations WHERE telegram_id = ?', (telegram_id,))
+            total_conv = cursor.fetchone()['total']
+            
+            cursor.execute('''
+                SELECT * FROM conversations 
+                WHERE telegram_id = ? AND service_type IS NOT NULL AND service_type != ''
+                ORDER BY created_at DESC
+                LIMIT 5
+            ''', (telegram_id,))
+            
+            orders = cursor.fetchall()
+            logger.info(f"Mes commandes: telegram_id={telegram_id}, total_conversations={total_conv}, orders_found={len(orders)}")
+        except Exception as e:
+            logger.error(f"Erreur récupération commandes: {e}")
+            orders = []
+        finally:
+            conn.close()
         
         if orders:
             orders_text = "📋 **Vos commandes récentes**\n\n"
@@ -434,14 +444,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Sauvegarder en DB
         conn = _connect()
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO conversations (telegram_id, username, first_name, service_type, quantity, link, details, estimated_price)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (telegram_id, state.get('username'), state.get('first_name'), 
-              service_type, quantity, state.get('link', 'Aucun'), state.get('details', 'Aucun détail supplémentaire'), state.get('estimated_price', 'À calculer')))
-        conn.commit()
-        conn.close()
+        try:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO conversations (telegram_id, username, first_name, service_type, quantity, link, details, estimated_price)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (telegram_id, state.get('username'), state.get('first_name'), 
+                  service_type, quantity, state.get('link', 'Aucun'), state.get('details', 'Aucun détail supplémentaire'), state.get('estimated_price', 'À calculer')))
+            conn.commit()
+            logger.info(f"Commande sauvegardée (skip_details): telegram_id={telegram_id}, service={service_type}, quantity={quantity}")
+        except Exception as e:
+            logger.error(f"Erreur sauvegarde commande (skip_details): {e}")
+            conn.rollback()
+        finally:
+            conn.close()
         
         final_recap = _get_recap(state)
         
@@ -657,14 +673,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Sauvegarder la conversation complète en DB
         conn = _connect()
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO conversations (telegram_id, username, first_name, service_type, quantity, link, details, estimated_price)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (telegram_id, state.get('username'), state.get('first_name'), 
-              service_type, quantity, state.get('link', 'Aucun'), state.get('details', 'Aucun détail supplémentaire'), state.get('estimated_price', 'À calculer')))
-        conn.commit()
-        conn.close()
+        try:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO conversations (telegram_id, username, first_name, service_type, quantity, link, details, estimated_price)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (telegram_id, state.get('username'), state.get('first_name'), 
+                  service_type, quantity, state.get('link', 'Aucun'), state.get('details', 'Aucun détail supplémentaire'), state.get('estimated_price', 'À calculer')))
+            conn.commit()
+            logger.info(f"Commande sauvegardée: telegram_id={telegram_id}, service={service_type}, quantity={quantity}")
+        except Exception as e:
+            logger.error(f"Erreur sauvegarde commande: {e}")
+            conn.rollback()
+        finally:
+            conn.close()
         
         # Générer le récapitulatif final avec toutes les informations
         final_recap = _get_recap(state)
