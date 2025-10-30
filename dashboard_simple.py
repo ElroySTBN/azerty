@@ -7,9 +7,10 @@ from functools import wraps
 import sqlite3
 from datetime import datetime
 import asyncio
+import os
 
 app = Flask(__name__)
-app.secret_key = 'lebonmot-secret-key-2024'
+app.secret_key = os.getenv('SECRET_KEY', 'lebonmot-secret-key-2024')
 
 # Référence au bot pour envoyer des messages
 bot_app = None
@@ -29,10 +30,16 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+@app.route('/health')
+def health():
+    """Endpoint de santé pour Railway"""
+    return jsonify({'status': 'healthy', 'service': 'Le Bon Mot'}), 200
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        if request.form.get('password') == 'admin123':
+        admin_password = os.getenv('ADMIN_PASSWORD', 'admin123')
+        if request.form.get('password') == admin_password:
             session['logged_in'] = True
             return redirect('/')
         return render_template_string(LOGIN_TEMPLATE, error="Mot de passe incorrect")
