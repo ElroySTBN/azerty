@@ -1,0 +1,10 @@
+.error-container {
+  text-align: center;
+  padding: 2rem;
+  margin-top: 2rem;
+}
+
+.error-container h2 {
+  margin-bottom: 1rem;
+}
+
