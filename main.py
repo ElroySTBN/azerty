@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 from src.database import init_database
 from src.client_bot import setup_client_bot
 from src.worker_bot import setup_worker_bot
-from src.web_admin import create_app, set_client_bot
+from src.web_admin import set_client_bot
+from miniapp_railway import app as miniapp_flask
 
 load_dotenv()
 
@@ -21,9 +22,8 @@ logging.getLogger('httpx').setLevel(logging.WARNING)
 logging.getLogger('telegram').setLevel(logging.WARNING)
 
 def run_flask_app():
-    """Lance l'application Flask dans un thread séparé"""
-    app = create_app()
-    app.run(host='0.0.0.0', port=8081, debug=False, use_reloader=False)
+    """Lance l'application Flask (Dashboard Admin + Mini App) dans un thread séparé"""
+    miniapp_flask.run(host='0.0.0.0', port=int(os.getenv('PORT', 8081)), debug=False, use_reloader=False)
 
 async def main():
     """
@@ -61,7 +61,8 @@ async def main():
     
     logger.info("✅ Tous les services sont démarrés !")
     logger.info("\n" + "="*50)
-    logger.info("📊 Dashboard Admin: http://localhost:8081")
+    logger.info("📊 Dashboard Admin: http://localhost:8081/admin")
+    logger.info("🚀 Mini App: http://localhost:8081")
     logger.info("   Username: admin")
     logger.info("   Password: admin123")
     logger.info("="*50 + "\n")
@@ -78,7 +79,8 @@ async def main():
         
         logger.info("\n🎉 Marketplace opérationnelle !")
         logger.info("Vous pouvez maintenant :")
-        logger.info("  - Accéder au dashboard admin sur http://localhost:8081")
+        logger.info("  - Accéder à la Mini App sur http://localhost:8081")
+        logger.info("  - Accéder au dashboard admin sur http://localhost:8081/admin")
         logger.info("  - Parler au bot sur Telegram")
         logger.info("\n⚠️  MODE SIMPLIFIÉ : Workers désactivés")
         logger.info("   Vous gérez les commandes manuellement via le dashboard")
