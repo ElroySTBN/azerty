@@ -25,6 +25,50 @@ PRICING = {
 # État des conversations
 user_conversations = {}
 
+def _get_recap(state):
+    """Génère un récapitulatif des étapes précédentes"""
+    recap = "━━━━━━━━━━━━━━━━━━\n📋 **Récapitulatif**\n━━━━━━━━━━━━━━━━━━\n\n"
+    
+    service_type = state.get('service_type')
+    if service_type:
+        service_info = PRICING.get(service_type, {})
+        recap += f"🔹 Service : **{service_info.get('name', service_type)}**\n"
+    
+    quantity = state.get('quantity')
+    if quantity:
+        recap += f"🔹 Quantité : **{quantity}**\n"
+    
+    link = state.get('link')
+    if link:
+        recap += f"🔹 Lien : {link[:50]}...\n" if len(link) > 50 else f"🔹 Lien : {link}\n"
+    
+    details = state.get('details')
+    if details:
+        recap += f"🔹 Détails : {details[:50]}...\n" if len(details) > 50 else f"🔹 Détails : {details}\n"
+    
+    recap += "\n━━━━━━━━━━━━━━━━━━\n\n"
+    return recap
+
+def _is_valid_quantity(text):
+    """Vérifie si le texte ne contient que des chiffres"""
+    # Retirer les espaces et vérifier si c'est un nombre valide
+    cleaned = text.strip().replace(' ', '')
+    if not cleaned:
+        return False
+    # Vérifier si c'est un nombre entier ou avec virgule/point
+    try:
+        # Accepter "15", "15 avis", "15€" etc.
+        import re
+        # Extraire tous les chiffres
+        numbers = re.findall(r'\d+', cleaned)
+        if len(numbers) == 0:
+            return False
+        # Le premier nombre doit être valide
+        int(numbers[0])
+        return True
+    except:
+        return False
+
 def _resolve_db_path() -> str:
     """Retourne un chemin de DB écrivable en prod/local.
     - Priorité à DB_PATH si défini
@@ -192,8 +236,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
+        recap = _get_recap(user_conversations[telegram_id])
+        
         await query.edit_message_text(
-            "📋 **Que souhaitez-vous commander ?**\n\nChoisissez le type de service :",
+            f"{recap}📋 **Que souhaitez-vous commander ?**\n\nChoisissez le type de service :",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
@@ -224,11 +270,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Direct au service forum
             user_conversations[telegram_id]['service_type'] = 'forum'
             user_conversations[telegram_id]['step'] = 'quantity'
+            recap = _get_recap(user_conversations[telegram_id])
             
             await query.edit_message_text(
-                f"✅ **Messages sur forum**\n\n"
-                f"📊 **Étape 1/3 : Quantité**\n\n"
-                f"Combien de messages souhaitez-vous ?",
+                f"{recap}✅ **Messages sur forum**\n\n"
+                f"📊 **Étape 2/4 : Quantité**\n\n"
+                f"Combien de messages souhaitez-vous ?\n"
+                f"_(Entrez uniquement un nombre, ex: 15)_",
                 parse_mode='Markdown'
             )
         
@@ -236,11 +284,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Direct au service suppression
             user_conversations[telegram_id]['service_type'] = 'suppression'
             user_conversations[telegram_id]['step'] = 'quantity'
+            recap = _get_recap(user_conversations[telegram_id])
             
             await query.edit_message_text(
-                f"✅ **Suppression de liens**\n\n"
-                f"📊 **Étape 1/3 : Quantité**\n\n"
-                f"Combien de liens à supprimer ?",
+                f"{recap}✅ **Suppression de liens**\n\n"
+                f"📊 **Étape 2/4 : Quantité**\n\n"
+                f"Combien de liens à supprimer ?\n"
+                f"_(Entrez uniquement un nombre, ex: 15)_",
                 parse_mode='Markdown'
             )
     
@@ -250,11 +300,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_conversations[telegram_id]['step'] = 'quantity'
         
         service_info = PRICING[service]
+        recap = _get_recap(user_conversations[telegram_id])
         
         await query.edit_message_text(
-            f"✅ **{service_info['name']}**\n\n"
-            f"📊 **Étape 1/3 : Quantité**\n\n"
-            f"Combien d'avis souhaitez-vous ?",
+            f"{recap}✅ **{service_info['name']}**\n\n"
+            f"📊 **Étape 2/4 : Quantité**\n\n"
+            f"Combien d'avis souhaitez-vous ?\n"
+            f"_(Entrez uniquement un nombre, ex: 15)_",
             parse_mode='Markdown'
         )
     
@@ -346,21 +398,62 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     step = state.get('step', 'support_mode')
     
     if step == 'quantity':
-        # L'utilisateur a répondu avec une quantité
-        state['quantity'] = message_text
+        # Vérifier que la quantité est valide (uniquement des chiffres)
+        if not _is_valid_quantity(message_text):
+            await update.message.reply_text(
+                "❌ **Quantité invalide**\n\n"
+                "Veuillez entrer uniquement un nombre.\n"
+                "Exemples valides : `15`, `20`, `50`",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Extraire le nombre de la réponse
+        import re
+        numbers = re.findall(r'\d+', message_text)
+        quantity_value = numbers[0] if numbers else message_text
+        
+        state['quantity'] = quantity_value
         state['step'] = 'link'
         
-        await update.message.reply_text(
-            f"✅ Quantité notée : **{message_text}**\n\n"
-            f"🔗 **Étape 3/4 : Lien (optionnel)**\n\n"
-            f"Avez-vous un lien à partager ?\n"
-            f"_(Page Google Maps, profil Trustpilot, forum, etc.)_\n\n"
-            f"Sinon, répondez **\"non\"** ou **\"skip\"**",
-            parse_mode='Markdown'
-        )
+        recap = _get_recap(state)
+        service_type = state.get('service_type', '')
+        
+        # Pour les avis, le lien est obligatoire
+        if service_type in ['google', 'trustpilot', 'pagesjaunes', 'autre_plateforme']:
+            await update.message.reply_text(
+                f"{recap}✅ Quantité notée : **{quantity_value}**\n\n"
+                f"🔗 **Étape 3/4 : Lien (obligatoire)**\n\n"
+                f"Veuillez partager le lien de votre établissement :\n"
+                f"_(Page Google Maps, profil Trustpilot, Pages Jaunes, etc.)_",
+                parse_mode='Markdown'
+            )
+        else:
+            # Pour forum et suppression, le lien est optionnel
+            state['step'] = 'details'
+            await update.message.reply_text(
+                f"{recap}✅ Quantité notée : **{quantity_value}**\n\n"
+                f"🔗 **Étape 3/4 : Lien (optionnel)**\n\n"
+                f"Avez-vous un lien à partager ?\n"
+                f"Sinon, répondez **\"non\"** ou **\"skip\"**",
+                parse_mode='Markdown'
+            )
     
     elif step == 'link':
-        # L'utilisateur a fourni un lien (ou skip)
+        # Pour les avis, le lien est obligatoire
+        service_type = state.get('service_type', '')
+        if service_type in ['google', 'trustpilot', 'pagesjaunes', 'autre_plateforme']:
+            if message_text.lower() in ['non', 'skip', 'aucun', 'pas de lien']:
+                await update.message.reply_text(
+                    "❌ **Lien obligatoire**\n\n"
+                    "Pour les avis, le lien est requis.\n"
+                    "Veuillez partager le lien de votre établissement :\n"
+                    "_(Page Google Maps, profil Trustpilot, etc.)_",
+                    parse_mode='Markdown'
+                )
+                return
+        
+        # L'utilisateur a fourni un lien (ou skip pour forum/suppression)
         if message_text.lower() in ['non', 'skip', 'aucun', 'pas de lien']:
             state['link'] = 'Aucun'
         else:
@@ -368,8 +461,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         state['step'] = 'details'
         
+        recap = _get_recap(state)
+        
         await update.message.reply_text(
-            f"📝 **Étape 4/4 : Détails supplémentaires (optionnel)**\n\n"
+            f"{recap}📝 **Étape 4/4 : Détails supplémentaires (optionnel)**\n\n"
             f"Avez-vous des précisions à ajouter ?\n"
             f"_(Points à mentionner, mots-clés, style souhaité, etc.)_\n\n"
             f"Sinon, répondez **\"non\"** ou **\"skip\"**",
@@ -402,28 +497,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             state['estimated_price'] = "À calculer"
         
         # Sauvegarder la conversation complète en DB
-        conn = sqlite3.connect('lebonmot_simple.db')
+        conn = _connect()
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO conversations (telegram_id, username, first_name, service_type, quantity, link, details, estimated_price)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ''', (telegram_id, state.get('username'), state.get('first_name'), 
-              service_type, quantity, state.get('link'), state.get('details'), state.get('estimated_price', 'À calculer')))
+              service_type, quantity, state.get('link', 'Aucun'), state.get('details', 'Aucun détail supplémentaire'), state.get('estimated_price', 'À calculer')))
         conn.commit()
         conn.close()
         
-        # Afficher le récapitulatif
-        recap = f"""✅ **Devis généré !**
+        # Générer le récapitulatif final avec toutes les informations
+        final_recap = _get_recap(state)
+        
+        # Afficher le récapitulatif final complet
+        recap_final = f"""✅ **Devis généré avec succès !**
 
-━━━━━━━━━━━━━━━━━━
-📋 **Récapitulatif**
-
-🔹 Service : {service_info['name']}
-🔹 Quantité : {quantity}
-🔹 Lien : {state.get('link', 'Aucun')}
-🔹 Détails : {state.get('details', 'Aucun')}
-
-💰 **Prix estimé :** {price_text}
+{final_recap}💰 **Prix estimé :** {price_text}
 🛡️ **Garantie :** {service_info['guarantee']}
 
 ━━━━━━━━━━━━━━━━━━
@@ -434,7 +524,7 @@ Vous pouvez continuer à nous écrire ici pour toute question. Notre support vou
 
         state['step'] = 'support_mode'
         
-        await update.message.reply_text(recap, parse_mode='Markdown')
+        await update.message.reply_text(recap_final, parse_mode='Markdown')
     
     elif step == 'support_mode' or step == 'menu':
         # Mode support actif
