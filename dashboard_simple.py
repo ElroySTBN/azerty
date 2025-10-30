@@ -9,6 +9,9 @@ from datetime import datetime
 import asyncio
 import os
 
+# Importer DB_PATH depuis bot_simple pour utiliser le même chemin
+from bot_simple import DB_PATH
+
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'lebonmot-secret-key-2024')
 
@@ -56,7 +59,7 @@ def dashboard():
     """Dashboard principal - Vue d'ensemble avec onglets"""
     view = request.args.get('view', 'overview')  # overview, conversations, orders
     
-    conn = sqlite3.connect('lebonmot_simple.db')
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
@@ -109,7 +112,7 @@ def dashboard():
 @login_required
 def conversation(conv_id):
     """Affiche une conversation spécifique"""
-    conn = sqlite3.connect('lebonmot_simple.db')
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
@@ -142,7 +145,7 @@ def reply(conv_id):
         return jsonify({'error': 'Message vide'}), 400
     
     # Récupérer le telegram_id
-    conn = sqlite3.connect('lebonmot_simple.db')
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
     result = cursor.fetchone()
