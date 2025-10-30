@@ -860,6 +860,12 @@ CONVERSATION_TEMPLATE = '''
         messages.scrollTop = messages.scrollHeight;
         
         // Templates de messages avec valeurs réelles (rendues côté serveur)
+        const convData = {
+            service: '{{ conv.service_type or "Service" }}',
+            quantity: '{{ conv.quantity or "?" }}',
+            price: '{{ conv.estimated_price or "À calculer" }}'
+        };
+        
         const templates = {
             'payment_crypto': `💰 *Informations de paiement*
 
@@ -867,7 +873,7 @@ Veuillez effectuer le paiement à l'adresse suivante :
 
 *Adresse crypto :* [VOTRE_ADRESSE_CRYPTO]
 
-*Montant :* {{ conv.estimated_price or "À calculer" }}
+*Montant :* ` + convData.price + `
 *Réseau :* Bitcoin / Ethereum / USDT
 
 Une fois le paiement effectué, merci de m'envoyer la confirmation de transaction (hash).`,
@@ -883,9 +889,9 @@ Je vous tiendrai informé dès que la commande sera livrée. N'hésitez pas si v
 Votre commande a été bien reçue et est en cours de traitement.
 
 *Récapitulatif :*
-• Service : {{ conv.service_type or "Service" }}
-• Quantité : {{ conv.quantity or "?" }}
-• Prix : {{ conv.estimated_price or "À calculer" }}
+• Service : ` + convData.service + `
+• Quantité : ` + convData.quantity + `
+• Prix : ` + convData.price + `
 
 *Délai estimé :* 48-72h
 
@@ -900,8 +906,6 @@ N'hésitez pas si vous avez des questions !`
         function insertTemplate(templateId) {
             const textarea = document.getElementById('messageTextarea');
             let template = templates[templateId];
-            
-            // Remplacer les variables Jinja qui sont déjà rendues côté serveur
             textarea.value = template;
             textarea.focus();
         }
