@@ -664,21 +664,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Générer le récapitulatif final avec toutes les informations
         final_recap = _get_recap(state)
         
-        # Afficher le récapitulatif final complet
-        recap_final = f"""✅ **Devis généré avec succès !**
+        # Afficher le récapitulatif final complet avec prix uniquement à la fin
+        keyboard = [
+            [InlineKeyboardButton("📝 Nouvelle commande", callback_data="new_quote")],
+            [InlineKeyboardButton("📋 Mes commandes", callback_data="my_orders")],
+            [InlineKeyboardButton("💬 Support", callback_data="contact_support")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        recap_final = f"""✅ *Devis généré avec succès !*
 
-{final_recap}💰 **Prix estimé :** {price_text}
-🛡️ **Garantie :** {service_info['guarantee']}
+{final_recap}💰 *Prix estimé :* {price_text}
 
 ━━━━━━━━━━━━━━━━━━
 
-✨ **Notre équipe vous contacte sous peu !**
+✨ *Notre équipe vous contacte sous peu !*
 
 Vous pouvez continuer à nous écrire ici pour toute question. Notre support vous répondra rapidement. 💬"""
 
         state['step'] = 'support_mode'
         
-        await update.message.reply_text(recap_final, parse_mode='Markdown')
+        await update.message.reply_text(recap_final, reply_markup=reply_markup, parse_mode='Markdown')
     
     elif step == 'support_mode' or step == 'menu':
         # Mode support actif
