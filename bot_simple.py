@@ -462,7 +462,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ━━━━━━━━━━━━━━━━━━
 
-✨ *Notre équipe vous contacte sous peu !*
+👨‍💼 *Un membre du support vous contactera dans les plus brefs délais.*
 
 Vous pouvez continuer à nous écrire ici pour toute question. Notre support vous répondra rapidement. 💬"""
 
@@ -551,8 +551,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
-                f"{recap}✅ Quantité notée : *{quantity_value}*\n\n"
-                f"🔗 *Étape 3/4 : Lien (obligatoire)*\n\n"
+                f"{recap}🔗 *Étape 3/4 : Lien (obligatoire)*\n\n"
                 f"Veuillez partager le lien de votre établissement :\n"
                 f"💡 _Copiez-collez simplement le lien (Google Maps, Trustpilot, Pages Jaunes)_",
                 reply_markup=reply_markup,
@@ -569,8 +568,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
-                f"{recap}✅ Quantité notée : *{quantity_value}*\n\n"
-                f"🔗 *Étape 3/4 : Lien (optionnel)*\n\n"
+                f"{recap}🔗 *Étape 3/4 : Lien (optionnel)*\n\n"
                 f"Avez-vous un lien à partager ?\n"
                 f"💡 _Si non, cliquez sur \"Passer cette étape\"_",
                 reply_markup=reply_markup,
@@ -678,7 +676,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 ━━━━━━━━━━━━━━━━━━
 
-✨ *Notre équipe vous contacte sous peu !*
+👨‍💼 *Un membre du support vous contactera dans les plus brefs délais.*
 
 Vous pouvez continuer à nous écrire ici pour toute question. Notre support vous répondra rapidement. 💬"""
 
