@@ -123,7 +123,7 @@ def reply(conv_id):
     
     # Envoyer via Telegram
     if bot_app and bot_loop:
-        formatted_message = f"👨‍💼 **Support Le Bon Mot**\n\n{message}"
+        formatted_message = f"Support 👨‍💼 : {message}"
         
         async def send_message():
             try:
