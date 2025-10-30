@@ -110,6 +110,9 @@ def _resolve_db_path() -> str:
 
 DB_PATH = _resolve_db_path()
 
+# Log du chemin DB utilisé au démarrage
+logger.info(f"📁 Base de données : {DB_PATH} (abs: {os.path.abspath(DB_PATH)})")
+
 def _connect():
     """Connexion SQLite optimisée (sans WAL pour éviter problèmes de persistance)"""
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
