@@ -46,10 +46,22 @@ def logout():
 @app.route('/')
 @login_required
 def dashboard():
-    """Dashboard principal - Liste des conversations"""
+    """Dashboard principal - Vue d'ensemble avec onglets"""
+    view = request.args.get('view', 'overview')  # overview, conversations, orders
+    
     conn = sqlite3.connect('lebonmot_simple.db')
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    
+    # Stats globales
+    cursor.execute('SELECT COUNT(*) FROM conversations WHERE service_type IS NOT NULL')
+    total_orders = cursor.fetchone()[0]
+    
+    cursor.execute('SELECT COUNT(DISTINCT telegram_id) FROM conversations')
+    total_clients = cursor.fetchone()[0]
+    
+    cursor.execute('SELECT COUNT(*) FROM messages WHERE sender = "client"')
+    total_messages = cursor.fetchone()[0]
     
     # Récupérer toutes les conversations
     cursor.execute('''
@@ -59,11 +71,32 @@ def dashboard():
         FROM conversations c
         ORDER BY c.created_at DESC
     ''')
-    
     conversations = cursor.fetchall()
+    
+    # Récupérer toutes les commandes (conversations avec service_type)
+    cursor.execute('''
+        SELECT c.*
+        FROM conversations c
+        WHERE c.service_type IS NOT NULL
+        ORDER BY c.created_at DESC
+    ''')
+    orders = cursor.fetchall()
+    
     conn.close()
     
-    return render_template_string(DASHBOARD_TEMPLATE, conversations=conversations)
+    stats = {
+        'total_orders': total_orders,
+        'total_clients': total_clients,
+        'total_messages': total_messages
+    }
+    
+    return render_template_string(
+        DASHBOARD_TEMPLATE, 
+        conversations=conversations,
+        orders=orders,
+        stats=stats,
+        view=view
+    )
 
 @app.route('/conversation/<int:conv_id>')
 @login_required
@@ -213,29 +246,94 @@ DASHBOARD_TEMPLATE = '''
             background: #f5f5f5;
         }
         .header {
-            background: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            display: block;
+            margin-bottom: 8px;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+        .tab:hover { color: #667eea; }
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            font-weight: 600;
+        }
+        
+        /* Cards */
         .card {
             background: white;
             border-radius: 8px;
             padding: 20px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             cursor: pointer;
-            transition: transform 0.2s;
+            transition: all 0.2s;
         }
-        .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
         .card-header {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 10px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .card-title {
             font-weight: 600;
+            font-size: 16px;
         }
         .badge {
             padding: 4px 12px;
@@ -244,51 +342,191 @@ DASHBOARD_TEMPLATE = '''
             background: #667eea;
             color: white;
         }
-        .meta { color: #666; font-size: 14px; margin-top: 10px; }
+        .badge-success { background: #28a745; }
+        .badge-warning { background: #ffc107; color: #333; }
+        .card-body { color: #666; font-size: 14px; line-height: 1.6; }
+        .card-meta {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #999;
+        }
+        .telegram-id {
+            font-family: monospace;
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
         .btn-logout {
             background: rgba(255,255,255,0.2);
             color: white;
             padding: 8px 16px;
             border-radius: 6px;
             text-decoration: none;
+            transition: background 0.3s;
         }
+        .btn-logout:hover { background: rgba(255,255,255,0.3); }
         .empty {
             text-align: center;
             padding: 60px 20px;
             color: #999;
+            background: white;
+            border-radius: 8px;
+        }
+        .section-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>💬 Conversations - Le Bon Mot</h1>
-        <a href="/logout" class="btn-logout">Déconnexion</a>
+        <div class="header-content">
+            <h1>📊 Le Bon Mot - Admin Dashboard</h1>
+            <a href="/logout" class="btn-logout">Déconnexion</a>
+        </div>
     </div>
     
     <div class="container">
-        {% if conversations %}
-            {% for conv in conversations %}
-            <div class="card" onclick="window.location.href='/conversation/{{ conv.id }}'">
-                <div class="card-header">
-                    <span>
-                        👤 {{ conv.first_name or 'Client' }}
-                        {% if conv.username %}(@{{ conv.username }}){% endif %}
-                    </span>
-                    <span class="badge">{{ conv.message_count }} messages</span>
+        <!-- Stats Overview -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-value">{{ stats.total_orders }}</span>
+                <span class="stat-label">Commandes</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">{{ stats.total_clients }}</span>
+                <span class="stat-label">Clients</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">{{ stats.total_messages }}</span>
+                <span class="stat-label">Messages</span>
+            </div>
+        </div>
+        
+        <!-- Tabs -->
+        <div class="tabs">
+            <a href="/?view=overview" class="tab {% if view == 'overview' %}active{% endif %}">
+                📋 Vue d'ensemble
+            </a>
+            <a href="/?view=orders" class="tab {% if view == 'orders' %}active{% endif %}">
+                🛒 Commandes ({{ stats.total_orders }})
+            </a>
+            <a href="/?view=conversations" class="tab {% if view == 'conversations' %}active{% endif %}">
+                💬 Conversations
+            </a>
+        </div>
+        
+        <!-- Content based on view -->
+        {% if view == 'overview' %}
+            <h2 class="section-title">📋 Dernières Commandes</h2>
+            {% if orders %}
+                {% for order in orders[:5] %}
+                <div class="card" onclick="window.location.href='/conversation/{{ order.id }}'">
+                    <div class="card-header">
+                        <div class="card-title">
+                            👤 {{ order.first_name or 'Client' }}
+                            {% if order.username %}<small>@{{ order.username }}</small>{% endif %}
+                        </div>
+                        <span class="badge badge-success">{{ order.service_type }}</span>
+                    </div>
+                    <div class="card-body">
+                        📦 <strong>{{ order.quantity }}</strong> • 💰 {{ order.estimated_price or 'À calculer' }}
+                    </div>
+                    <div class="card-meta">
+                        <span>🆔 <span class="telegram-id">{{ order.telegram_id }}</span></span>
+                        <span>🕐 {{ order.created_at }}</span>
+                    </div>
                 </div>
-                {% if conv.service_type %}
-                <p>📋 Service : <strong>{{ conv.service_type }}</strong> • Quantité : {{ conv.quantity }}</p>
-                {% endif %}
-                {% if conv.last_message %}
-                <p class="meta">💬 "{{ conv.last_message[:100] }}..."</p>
-                {% endif %}
-                <p class="meta">🕐 {{ conv.created_at }}</p>
-            </div>
-            {% endfor %}
-        {% else %}
-            <div class="empty">
-                <p>📭 Aucune conversation pour le moment</p>
-            </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty">📭 Aucune commande pour le moment</div>
+            {% endif %}
+            
+            <h2 class="section-title" style="margin-top: 40px;">💬 Dernières Conversations</h2>
+            {% if conversations %}
+                {% for conv in conversations[:5] %}
+                <div class="card" onclick="window.location.href='/conversation/{{ conv.id }}'">
+                    <div class="card-header">
+                        <div class="card-title">
+                            👤 {{ conv.first_name or 'Client' }}
+                            {% if conv.username %}<small>@{{ conv.username }}</small>{% endif %}
+                        </div>
+                        <span class="badge">{{ conv.message_count }} messages</span>
+                    </div>
+                    <div class="card-body">
+                        {% if conv.last_message %}
+                        💬 "{{ conv.last_message[:80] }}..."
+                        {% endif %}
+                    </div>
+                    <div class="card-meta">
+                        <span>🆔 <span class="telegram-id">{{ conv.telegram_id }}</span></span>
+                        <span>🕐 {{ conv.created_at }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            {% endif %}
+        
+        {% elif view == 'orders' %}
+            <h2 class="section-title">🛒 Toutes les Commandes</h2>
+            {% if orders %}
+                {% for order in orders %}
+                <div class="card" onclick="window.location.href='/conversation/{{ order.id }}'">
+                    <div class="card-header">
+                        <div class="card-title">
+                            👤 {{ order.first_name or 'Client' }}
+                            {% if order.username %}<small>@{{ order.username }}</small>{% endif %}
+                        </div>
+                        <span class="badge badge-success">{{ order.service_type }}</span>
+                    </div>
+                    <div class="card-body">
+                        📦 Quantité : <strong>{{ order.quantity }}</strong><br>
+                        💰 Prix estimé : {{ order.estimated_price or 'À calculer' }}<br>
+                        {% if order.link and order.link != 'Aucun' %}🔗 {{ order.link[:50] }}...{% endif %}
+                    </div>
+                    <div class="card-meta">
+                        <span>🆔 <span class="telegram-id">{{ order.telegram_id }}</span></span>
+                        <span>🕐 {{ order.created_at }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty">📭 Aucune commande pour le moment</div>
+            {% endif %}
+        
+        {% elif view == 'conversations' %}
+            <h2 class="section-title">💬 Toutes les Conversations</h2>
+            {% if conversations %}
+                {% for conv in conversations %}
+                <div class="card" onclick="window.location.href='/conversation/{{ conv.id }}'">
+                    <div class="card-header">
+                        <div class="card-title">
+                            👤 {{ conv.first_name or 'Client' }}
+                            {% if conv.username %}<small>@{{ conv.username }}</small>{% endif %}
+                        </div>
+                        <span class="badge">{{ conv.message_count }} messages</span>
+                    </div>
+                    <div class="card-body">
+                        {% if conv.service_type %}
+                        📋 Service : <strong>{{ conv.service_type }}</strong> • Quantité : {{ conv.quantity }}<br>
+                        {% endif %}
+                        {% if conv.last_message %}
+                        💬 "{{ conv.last_message[:80] }}..."
+                        {% endif %}
+                    </div>
+                    <div class="card-meta">
+                        <span>🆔 <span class="telegram-id">{{ conv.telegram_id }}</span></span>
+                        <span>🕐 {{ conv.created_at }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty">📭 Aucune conversation pour le moment</div>
+            {% endif %}
         {% endif %}
     </div>
 </body>
