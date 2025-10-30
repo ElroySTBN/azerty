@@ -16,13 +16,16 @@ load_dotenv()
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.WARNING  # Réduire les logs pour économiser I/O
 )
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)  # Seulement les logs importants du bot
 
-# Réduire le bruit des logs
+# Réduire le bruit des logs (tous en WARNING)
 logging.getLogger('httpx').setLevel(logging.WARNING)
 logging.getLogger('telegram').setLevel(logging.WARNING)
+logging.getLogger('werkzeug').setLevel(logging.WARNING)  # Réduire les logs Flask
+logging.getLogger('apscheduler').setLevel(logging.WARNING)  # Réduire les logs scheduler
 
 def run_flask():
     """Lance le dashboard Flask"""
@@ -69,7 +72,16 @@ async def main():
         
         async with bot_app:
             await bot_app.start()
-            await bot_app.updater.start_polling()
+            # Polling optimisé : intervalle plus long pour réduire la consommation CPU
+            await bot_app.updater.start_polling(
+                poll_interval=10.0,  # 10 secondes entre les polls (au lieu de 0.1 par défaut)
+                timeout=20,  # Timeout plus long
+                bootstrap_retries=-1,  # Retries infinis en cas d'erreur temporaire
+                read_timeout=30,  # Timeout de lecture
+                write_timeout=30,  # Timeout d'écriture
+                connect_timeout=30,  # Timeout de connexion
+                pool_timeout=30  # Timeout du pool
+            )
             
             # Connecter le bot au dashboard pour les réponses
             loop = asyncio.get_event_loop()

@@ -15,6 +15,14 @@ from bot_simple import DB_PATH
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'lebonmot-secret-key-2024')
 
+def _connect_db():
+    """Connexion SQLite optimisée avec les mêmes optimisations que bot_simple"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA synchronous=NORMAL')
+    conn.execute('PRAGMA cache_size=-10000')
+    return conn
+
 # Référence au bot pour envoyer des messages
 bot_app = None
 bot_loop = None
@@ -59,36 +67,44 @@ def dashboard():
     """Dashboard principal - Vue d'ensemble avec onglets"""
     view = request.args.get('view', 'overview')  # overview, conversations, orders
     
-    conn = sqlite3.connect(DB_PATH)
+    # Connexion optimisée
+    conn = _connect_db()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # Stats globales
-    cursor.execute('SELECT COUNT(*) FROM conversations WHERE service_type IS NOT NULL')
-    total_orders = cursor.fetchone()[0]
-    
-    cursor.execute('SELECT COUNT(DISTINCT telegram_id) FROM conversations')
-    total_clients = cursor.fetchone()[0]
-    
-    cursor.execute('SELECT COUNT(*) FROM messages WHERE sender = "client"')
-    total_messages = cursor.fetchone()[0]
-    
-    # Récupérer toutes les conversations
+    # Stats globales optimisées (une seule requête au lieu de 3)
     cursor.execute('''
-        SELECT c.*, 
-               (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) as message_count,
-               (SELECT message FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message
+        SELECT 
+            COUNT(CASE WHEN service_type IS NOT NULL THEN 1 END) as total_orders,
+            COUNT(DISTINCT telegram_id) as total_clients,
+            (SELECT COUNT(*) FROM messages WHERE sender = 'client') as total_messages
+        FROM conversations
+    ''')
+    stats_row = cursor.fetchone()
+    total_orders = stats_row['total_orders'] or 0
+    total_clients = stats_row['total_clients'] or 0
+    total_messages = stats_row['total_messages'] or 0
+    
+    # Requête optimisée pour conversations avec LEFT JOIN au lieu de sous-requêtes
+    cursor.execute('''
+        SELECT 
+            c.*,
+            COUNT(m.id) as message_count,
+            MAX(m.created_at) as last_message_time,
+            (SELECT message FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message
         FROM conversations c
+        LEFT JOIN messages m ON m.conversation_id = c.id
+        GROUP BY c.id
         ORDER BY c.created_at DESC
     ''')
     conversations = cursor.fetchall()
     
-    # Récupérer toutes les commandes (conversations avec service_type)
+    # Requête simple pour les commandes
     cursor.execute('''
-        SELECT c.*
-        FROM conversations c
-        WHERE c.service_type IS NOT NULL
-        ORDER BY c.created_at DESC
+        SELECT *
+        FROM conversations
+        WHERE service_type IS NOT NULL
+        ORDER BY created_at DESC
     ''')
     orders = cursor.fetchall()
     
@@ -112,7 +128,7 @@ def dashboard():
 @login_required
 def conversation(conv_id):
     """Affiche une conversation spécifique"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect_db()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
@@ -145,7 +161,7 @@ def reply(conv_id):
         return jsonify({'error': 'Message vide'}), 400
     
     # Récupérer le telegram_id
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect_db()
     cursor = conn.cursor()
     cursor.execute('SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
     result = cursor.fetchone()

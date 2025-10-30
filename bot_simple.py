@@ -49,7 +49,16 @@ def _resolve_db_path() -> str:
 DB_PATH = _resolve_db_path()
 
 def _connect():
-    return sqlite3.connect(DB_PATH)
+    """Connexion SQLite optimisée avec WAL mode et optimisations"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    # Activer WAL mode pour meilleures performances en lecture/écriture
+    conn.execute('PRAGMA journal_mode=WAL')
+    # Optimisations pour réduire la consommation
+    conn.execute('PRAGMA synchronous=NORMAL')  # Moins strict que FULL, plus rapide
+    conn.execute('PRAGMA cache_size=-10000')  # 10MB de cache (au lieu de 2MB par défaut)
+    conn.execute('PRAGMA temp_store=MEMORY')  # Tables temporaires en RAM
+    conn.execute('PRAGMA mmap_size=268435456')  # 256MB mmap pour grandes lectures
+    return conn
 
 def init_simple_db():
     """Initialise une base de données ultra-simple"""
