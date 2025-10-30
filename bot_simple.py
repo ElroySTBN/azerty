@@ -243,14 +243,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("⭐ Avis (Google, Trustpilot, etc.)", callback_data="category:avis")],
             [InlineKeyboardButton("💬 Messages sur forum", callback_data="category:forum")],
             [InlineKeyboardButton("🗑️ Suppression de lien (1ère page)", callback_data="category:suppression")],
-            [InlineKeyboardButton("« Retour", callback_data="back_to_start")]
+            [InlineKeyboardButton("🏠 Menu principal", callback_data="back_to_start")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         recap = _get_recap(user_conversations[telegram_id])
+        cta_msg = "🎯 *Choisissez votre service en cliquant sur un bouton ci-dessous*"
         
         await query.edit_message_text(
-            f"{recap}📋 **Que souhaitez-vous commander ?**\n\nChoisissez le type de service :",
+            f"{recap}📋 *Que souhaitez-vous commander ?*\n\n{cta_msg}\n\nChoisissez le type de service :",
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
@@ -332,12 +333,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         service_info = PRICING[service]
         recap = _get_recap(user_conversations[telegram_id])
+        price_info = f"{service_info['price']} {service_info['currency']}" if service_info['price'] != 'Sur devis' else "Sur devis"
+        guarantee_emoji = "🛡️" if "garanti" in service_info['guarantee'].lower() or "non-drop" in service_info['guarantee'].lower() else "✅"
+        
+        keyboard = [
+            [InlineKeyboardButton("🏠 Menu principal", callback_data="back_to_start")],
+            [InlineKeyboardButton("◀️ Retour", callback_data="category:avis")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(
-            f"{recap}✅ **{service_info['name']}**\n\n"
-            f"📊 **Étape 2/4 : Quantité**\n\n"
+            f"{recap}✅ *{service_info['name']}*\n\n"
+            f"💰 Prix : *{price_info}*\n"
+            f"{guarantee_emoji} {service_info['guarantee']}\n\n"
+            f"📊 *Étape 2/4 : Quantité*\n\n"
             f"Combien d'avis souhaitez-vous ?\n"
-            f"_(Entrez uniquement un nombre, ex: 15)_",
+            f"💡 _Entrez simplement un nombre (ex: 15, 20, 50)_",
+            reply_markup=reply_markup,
             parse_mode='Markdown'
         )
     
