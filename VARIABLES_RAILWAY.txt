@@ -1,0 +1,31 @@
+📋 VARIABLES À AJOUTER SUR RAILWAY
+=====================================
+
+Tu as déjà :
+✅ ADMIN_PASSWORD
+✅ CLIENT_BOT_TOKEN  
+✅ FLASK_SECRET_KEY
+
+Il manque :
+❌ MINIAPP_URL
+
+COMMENT AJOUTER MINIAPP_URL :
+------------------------------
+
+1. Sur Railway, va dans ton service
+2. Clique sur "Variables"
+3. Clique sur "+ New Variable"
+4. Nom : MINIAPP_URL
+5. Valeur : https://TON-DOMAINE.railway.app
+
+⚠️ IMPORTANT : Remplace "TON-DOMAINE" par le vrai domaine que Railway t'a donné !
+
+COMMENT TROUVER TON DOMAINE :
+------------------------------
+1. Sur Railway, clique sur ton service
+2. Clique sur "Settings" (en haut)
+3. Descends jusqu'à "Networking" ou "Domains"
+4. Copie l'URL qui finit par ".railway.app"
+
+C'EST TOUT ! Une fois que tu ajoutes cette variable, Railway redémarre automatiquement.
+
