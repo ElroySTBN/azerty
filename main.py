@@ -41,7 +41,7 @@ def run_flask():
 
 async def main():
     """Point d'entrée principal"""
-    logger.info("🚀 Démarrage du Bot Le Bon Mot - Version Simple...")
+    logger.info("🚀 Démarrage du Bot RepuTech - Version Simple...")
     
     # Token du bot
     CLIENT_BOT_TOKEN = os.getenv('CLIENT_BOT_TOKEN')
@@ -96,7 +96,7 @@ async def main():
                 logger.info(f"   Taille : {size} octets ({size/1024:.2f} KB)")
             
             logger.info("\n" + "="*50)
-            logger.info("🎉 LE BON MOT - OPÉRATIONNEL !")
+            logger.info("🎉 REPUTECH - OPÉRATIONNEL !")
             logger.info("="*50)
             logger.info(f"\n📱 Bot Telegram : @{(await bot_app.bot.get_me()).username}")
             logger.info(f"📊 Dashboard Admin : http://localhost:{os.getenv('PORT', 8081)}")
