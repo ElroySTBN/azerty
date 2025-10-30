@@ -1,0 +1,19 @@
+# Ignorer les anciens fichiers non utilisés
+miniapp/
+dashboard_v2/
+miniapp_railway.py
+railway_build.sh
+reset_telegram_webhook.py
+start_bot_safe.sh
+
+# Fichiers de développement
+__pycache__/
+*.pyc
+*.db
+.DS_Store
+.env
+
+# Documentation (pas nécessaire pour le build)
+*.md
+attached_assets/
+
