@@ -7,6 +7,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 import logging
 from datetime import datetime
 import sqlite3
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,9 +25,35 @@ PRICING = {
 # État des conversations
 user_conversations = {}
 
+def _resolve_db_path() -> str:
+    """Retourne un chemin de DB écrivable en prod/local.
+    - Priorité à DB_PATH si défini
+    - Tente /data/lebonmot_simple.db (Railway)
+    - Sinon fallback: ./lebonmot_simple.db
+    """
+    override = os.getenv('DB_PATH')
+    if override:
+        os.makedirs(os.path.dirname(override) or '.', exist_ok=True)
+        return override
+
+    candidates = ["/data/lebonmot_simple.db", "lebonmot_simple.db"]
+    for path in candidates:
+        try:
+            directory = os.path.dirname(path) or '.'
+            os.makedirs(directory, exist_ok=True)
+            return path
+        except Exception:
+            continue
+    return "lebonmot_simple.db"
+
+DB_PATH = _resolve_db_path()
+
+def _connect():
+    return sqlite3.connect(DB_PATH)
+
 def init_simple_db():
     """Initialise une base de données ultra-simple"""
-    conn = sqlite3.connect('lebonmot_simple.db')
+    conn = _connect()
     cursor = conn.cursor()
     
     # Table des conversations
@@ -65,7 +92,7 @@ def init_simple_db():
 
 def save_message(telegram_id, message, sender='client'):
     """Sauvegarde un message"""
-    conn = sqlite3.connect('lebonmot_simple.db')
+    conn = _connect()
     cursor = conn.cursor()
     
     # Trouver ou créer la conversation
@@ -219,7 +246,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Afficher les commandes du client
         user_conversations[telegram_id]['step'] = 'viewing_orders'
         
-        conn = sqlite3.connect('lebonmot_simple.db')
+        conn = _connect()
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
