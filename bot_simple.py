@@ -376,9 +376,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_conversations[telegram_id] = {'step': 'support_mode'}
         
         await query.edit_message_text(
-            "💬 **Mode Support activé**\n\n"
+            "💬 *Mode Support activé*\n\n"
             "Vous pouvez maintenant discuter directement avec notre équipe.\n"
-            "Écrivez votre message ci-dessous ! 👇"
+            "Écrivez votre message ci-dessous ! 👇",
+            parse_mode='Markdown'
         )
         
         save_message(telegram_id, "👤 Client a contacté le support", 'system')
