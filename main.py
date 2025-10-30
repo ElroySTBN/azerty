@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 
 from src.database import init_database
 from src.client_bot import setup_client_bot
-from src.worker_bot import setup_worker_bot
 from src.web_admin import set_client_bot
 from miniapp_railway import app as miniapp_flask
 
