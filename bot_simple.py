@@ -262,18 +262,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if category == "avis":
             # Choix de la plateforme d'avis
             user_conversations[telegram_id]['step'] = 'service_type'
+            recap = _get_recap(user_conversations[telegram_id])
             
             keyboard = [
                 [InlineKeyboardButton("⭐ Avis Google", callback_data="service:google")],
                 [InlineKeyboardButton("🌟 Trustpilot", callback_data="service:trustpilot")],
                 [InlineKeyboardButton("📒 Pages Jaunes", callback_data="service:pagesjaunes")],
                 [InlineKeyboardButton("🌐 Autre plateforme", callback_data="service:autre_plateforme")],
-                [InlineKeyboardButton("« Retour", callback_data="new_quote")]
+                [InlineKeyboardButton("🏠 Menu principal", callback_data="back_to_start")],
+                [InlineKeyboardButton("◀️ Retour", callback_data="new_quote")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await query.edit_message_text(
-                "⭐ **Avis sur quelle plateforme ?**\n\nChoisissez la plateforme :",
+                f"{recap}⭐ *Avis sur quelle plateforme ?*\n\nChoisissez la plateforme :",
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
