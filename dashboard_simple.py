@@ -199,6 +199,101 @@ def reply(conv_id):
     
     return redirect(f'/conversation/{conv_id}')
 
+@app.route('/conversation/<int:conv_id>/template', methods=['POST'])
+@login_required
+def send_template(conv_id):
+    """Envoie un template de message"""
+    template_id = request.form.get('template_id')
+    
+    # Templates de messages
+    templates = {
+        'payment_crypto': '''💰 *Informations de paiement*
+
+Veuillez effectuer le paiement à l'adresse suivante :
+
+*Adresse crypto :* [VOTRE_ADRESSE_CRYPTO]
+
+*Montant :* [MONTANT]
+*Réseau :* [RESEAU]
+
+Une fois le paiement effectué, merci de m'envoyer la confirmation de transaction (hash).''',
+        'payment_received': '''✅ *Paiement reçu !*
+
+Merci pour votre paiement. Votre commande est maintenant en cours de traitement.
+
+*Délai estimé :* 48-72h
+
+Je vous tiendrai informé dès que la commande sera livrée. N'hésitez pas si vous avez des questions !''',
+        'order_confirmed': '''✅ *Commande confirmée !*
+
+Votre commande a été bien reçue et est en cours de traitement.
+
+*Récapitulatif :*
+• Service : [SERVICE]
+• Quantité : [QUANTITE]
+• Prix : [PRIX]
+
+*Délai estimé :* 48-72h
+
+Je vous tiendrai informé de l'avancement !''',
+        'follow_up': '''👋 Bonjour,
+
+Souhaitez-vous un point sur l'avancement de votre commande ?
+
+N'hésitez pas si vous avez des questions !'''
+    }
+    
+    if template_id not in templates:
+        return jsonify({'error': 'Template introuvable'}), 400
+    
+    message = templates[template_id]
+    
+    # Récupérer le telegram_id et infos commande pour remplacer les variables
+    conn = _connect_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM conversations WHERE id = ?', (conv_id,))
+    conv = cursor.fetchone()
+    
+    if not conv:
+        conn.close()
+        return jsonify({'error': 'Conversation introuvable'}), 404
+    
+    telegram_id = conv['telegram_id']
+    
+    # Remplacer les variables [VARIABLE] par les valeurs réelles
+    message = message.replace('[SERVICE]', conv.get('service_type', 'Service'))
+    message = message.replace('[QUANTITE]', str(conv.get('quantity', '?')))
+    message = message.replace('[PRIX]', conv.get('estimated_price', 'À calculer'))
+    message = message.replace('[MONTANT]', conv.get('estimated_price', 'À calculer'))
+    message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')  # À configurer
+    message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
+    
+    # Sauvegarder le message en DB
+    cursor.execute('''
+        INSERT INTO messages (conversation_id, telegram_id, message, sender)
+        VALUES (?, ?, ?, ?)
+    ''', (conv_id, telegram_id, message, 'admin'))
+    conn.commit()
+    conn.close()
+    
+    # Envoyer via Telegram
+    if bot_app and bot_loop:
+        formatted_message = f"Support 👨‍💼 : {message}"
+        
+        async def send_message():
+            try:
+                await bot_app.bot.send_message(
+                    chat_id=telegram_id,
+                    text=formatted_message,
+                    parse_mode='Markdown'
+                )
+            except Exception as e:
+                print(f"Erreur envoi message: {e}")
+        
+        asyncio.run_coroutine_threadsafe(send_message(), bot_loop)
+    
+    return redirect(f'/conversation/{conv_id}')
+
 # Templates HTML
 LOGIN_TEMPLATE = '''
 <!DOCTYPE html>
@@ -499,31 +594,65 @@ DASHBOARD_TEMPLATE = '''
             {% endif %}
         
         {% elif view == 'orders' %}
-            <h2 class="section-title">🛒 Toutes les Commandes</h2>
-            {% if orders %}
-                {% for order in orders %}
-                <div class="card" onclick="window.location.href='/conversation/{{ order.id }}'">
-                    <div class="card-header">
-                        <div class="card-title">
-                            👤 {{ order.first_name or 'Client' }}
-                            {% if order.username %}<small>@{{ order.username }}</small>{% endif %}
-                        </div>
-                        <span class="badge badge-success">{{ order.service_type }}</span>
-                    </div>
-                    <div class="card-body">
-                        📦 Quantité : <strong>{{ order.quantity }}</strong><br>
-                        💰 Prix estimé : {{ order.estimated_price or 'À calculer' }}<br>
-                        {% if order.link and order.link != 'Aucun' %}🔗 {{ order.link[:50] }}...{% endif %}
-                    </div>
-                    <div class="card-meta">
-                        <span>🆔 <span class="telegram-id">{{ order.telegram_id }}</span></span>
-                        <span>🕐 {{ order.created_at }}</span>
-                    </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 class="section-title" style="margin: 0;">🛒 Toutes les Commandes</h2>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="searchOrders" placeholder="🔍 Rechercher..." style="padding: 8px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" onkeyup="filterOrders()">
+                    <select id="filterService" onchange="filterOrders()" style="padding: 8px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;">
+                        <option value="">Tous les services</option>
+                        <option value="google">Avis Google</option>
+                        <option value="trustpilot">Trustpilot</option>
+                        <option value="forum">Forum</option>
+                        <option value="autre_plateforme">Autre plateforme</option>
+                        <option value="suppression">Suppression</option>
+                    </select>
                 </div>
-                {% endfor %}
+            </div>
+            {% if orders %}
+                <div id="ordersList">
+                    {% for order in orders %}
+                    <div class="card order-card" onclick="window.location.href='/conversation/{{ order.id }}'" data-service="{{ order.service_type }}" data-search="{{ (order.first_name or '') + ' ' + (order.username or '') + ' ' + (order.service_type or '') + ' ' + (order.quantity or '') + ' ' + (order.estimated_price or '') }}">
+                        <div class="card-header">
+                            <div class="card-title">
+                                👤 {{ order.first_name or 'Client' }}
+                                {% if order.username %}<small>@{{ order.username }}</small>{% endif %}
+                            </div>
+                            <span class="badge badge-success">{{ order.service_type }}</span>
+                        </div>
+                        <div class="card-body">
+                            📦 Quantité : <strong>{{ order.quantity }}</strong><br>
+                            💰 Prix estimé : {{ order.estimated_price or 'À calculer' }}<br>
+                            {% if order.link and order.link != 'Aucun' %}🔗 <a href="{{ order.link }}" target="_blank" onclick="event.stopPropagation();">{{ order.link[:50] }}...</a>{% endif %}
+                        </div>
+                        <div class="card-meta">
+                            <span>🆔 <span class="telegram-id">{{ order.telegram_id }}</span></span>
+                            <span>🕐 {{ order.created_at }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
             {% else %}
                 <div class="empty">📭 Aucune commande pour le moment</div>
             {% endif %}
+            
+            <script>
+                function filterOrders() {
+                    const search = document.getElementById('searchOrders').value.toLowerCase();
+                    const filter = document.getElementById('filterService').value.toLowerCase();
+                    const cards = document.querySelectorAll('.order-card');
+                    
+                    cards.forEach(card => {
+                        const serviceMatch = !filter || card.dataset.service?.toLowerCase() === filter;
+                        const searchMatch = !search || card.dataset.search?.toLowerCase().includes(search);
+                        
+                        if (serviceMatch && searchMatch) {
+                            card.style.display = 'block';
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    });
+                }
+            </script>
         
         {% elif view == 'conversations' %}
             <h2 class="section-title">💬 Toutes les Conversations</h2>
@@ -633,6 +762,13 @@ CONVERSATION_TEMPLATE = '''
             display: flex;
             gap: 10px;
         }
+        .reply-form {
+            background: white;
+            padding: 20px;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+        }
         .reply-form textarea {
             flex: 1;
             padding: 12px;
@@ -640,6 +776,7 @@ CONVERSATION_TEMPLATE = '''
             border-radius: 8px;
             resize: none;
             font-family: inherit;
+            font-size: 14px;
         }
         .reply-form button {
             padding: 12px 24px;
@@ -648,6 +785,28 @@ CONVERSATION_TEMPLATE = '''
             border: none;
             border-radius: 8px;
             cursor: pointer;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        .reply-form button:hover {
+            background: #5568d3;
+        }
+        .template-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .template-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .template-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
         }
     </style>
 </head>
@@ -678,8 +837,20 @@ CONVERSATION_TEMPLATE = '''
         {% endfor %}
     </div>
     
+    <div style="background: white; padding: 15px; border-top: 1px solid #ddd;">
+        <div style="margin-bottom: 15px;">
+            <div style="font-weight: 600; margin-bottom: 10px; color: #667eea;">📝 Templates rapides :</div>
+            <div class="template-buttons">
+                <button type="button" onclick="insertTemplate('payment_crypto')" class="template-btn" style="background: #667eea; color: white;">💰 Paiement Crypto</button>
+                <button type="button" onclick="insertTemplate('payment_received')" class="template-btn" style="background: #28a745; color: white;">✅ Paiement reçu</button>
+                <button type="button" onclick="insertTemplate('order_confirmed')" class="template-btn" style="background: #17a2b8; color: white;">✅ Commande confirmée</button>
+                <button type="button" onclick="insertTemplate('follow_up')" class="template-btn" style="background: #ffc107; color: #333;">👋 Suivi</button>
+            </div>
+        </div>
+    </div>
+    
     <form class="reply-form" method="POST" action="/conversation/{{ conv.id }}/reply">
-        <textarea name="message" rows="3" placeholder="Votre réponse..." required></textarea>
+        <textarea name="message" id="messageTextarea" rows="4" placeholder="Votre réponse..." required></textarea>
         <button type="submit">Envoyer ➤</button>
     </form>
     
@@ -687,6 +858,53 @@ CONVERSATION_TEMPLATE = '''
         // Auto-scroll vers le bas
         const messages = document.getElementById('messages');
         messages.scrollTop = messages.scrollHeight;
+        
+        // Templates de messages avec valeurs réelles (rendues côté serveur)
+        const templates = {
+            'payment_crypto': `💰 *Informations de paiement*
+
+Veuillez effectuer le paiement à l'adresse suivante :
+
+*Adresse crypto :* [VOTRE_ADRESSE_CRYPTO]
+
+*Montant :* {{ conv.estimated_price or "À calculer" }}
+*Réseau :* Bitcoin / Ethereum / USDT
+
+Une fois le paiement effectué, merci de m'envoyer la confirmation de transaction (hash).`,
+            'payment_received': `✅ *Paiement reçu !*
+
+Merci pour votre paiement. Votre commande est maintenant en cours de traitement.
+
+*Délai estimé :* 48-72h
+
+Je vous tiendrai informé dès que la commande sera livrée. N'hésitez pas si vous avez des questions !`,
+            'order_confirmed': `✅ *Commande confirmée !*
+
+Votre commande a été bien reçue et est en cours de traitement.
+
+*Récapitulatif :*
+• Service : {{ conv.service_type or "Service" }}
+• Quantité : {{ conv.quantity or "?" }}
+• Prix : {{ conv.estimated_price or "À calculer" }}
+
+*Délai estimé :* 48-72h
+
+Je vous tiendrai informé de l'avancement !`,
+            'follow_up': `👋 Bonjour,
+
+Souhaitez-vous un point sur l'avancement de votre commande ?
+
+N'hésitez pas si vous avez des questions !`
+        };
+        
+        function insertTemplate(templateId) {
+            const textarea = document.getElementById('messageTextarea');
+            let template = templates[templateId];
+            
+            // Remplacer les variables Jinja qui sont déjà rendues côté serveur
+            textarea.value = template;
+            textarea.focus();
+        }
     </script>
 </body>
 </html>
