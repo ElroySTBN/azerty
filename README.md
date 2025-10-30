@@ -1,4 +1,4 @@
-# 🔐 Le Bon Mot - Bot Telegram Simple
+# 🔐 RepuTech - Bot Telegram Simple
 
 Service anonyme de e-réputation - Bot Telegram + Dashboard Admin
 
