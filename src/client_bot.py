@@ -1,7 +1,8 @@
 import logging
 import random
 import string
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+import os
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 from src.database import get_or_create_client, create_order, get_client_orders, get_order_by_id
 
@@ -108,7 +109,11 @@ Service Anonyme de E-réputation
 
 Votre ID : #{}""".format(client['client_id'])
     
+    # Récupérer l'URL de la Mini App (Railway ou local)
+    miniapp_url = os.getenv('MINIAPP_URL', 'https://lebonmot-production.up.railway.app')
+    
     keyboard = [
+        [InlineKeyboardButton("🚀 Ouvrir l'app", web_app=WebAppInfo(url=miniapp_url))],
         [InlineKeyboardButton("📝 Commander des avis", callback_data="order:type_reviews")],
         [InlineKeyboardButton("💬 Messages sur forums", callback_data="order:type_forum")],
         [InlineKeyboardButton("📦 Mes commandes", callback_data="orders:list")],
@@ -412,7 +417,11 @@ Service Anonyme de E-réputation
 
 Votre ID : #{}""".format(client['client_id'])
     
+    # Récupérer l'URL de la Mini App
+    miniapp_url = os.getenv('MINIAPP_URL', 'https://lebonmot-production.up.railway.app')
+    
     keyboard = [
+        [InlineKeyboardButton("🚀 Ouvrir l'app", web_app=WebAppInfo(url=miniapp_url))],
         [InlineKeyboardButton("📝 Commander des avis", callback_data="order:type_reviews")],
         [InlineKeyboardButton("💬 Messages sur forums", callback_data="order:type_forum")],
         [InlineKeyboardButton("📦 Mes commandes", callback_data="orders:list")],
