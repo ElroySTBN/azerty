@@ -1,0 +1,45 @@
+{
+  "name": "Le Bon Mot - Dashboard",
+  "short_name": "LBM Admin",
+  "description": "Dashboard admin pour gérer les commandes d'avis",
+  "start_url": "/mobile",
+  "display": "standalone",
+  "background_color": "#0088cc",
+  "theme_color": "#0088cc",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/static/icons/screenshot.png",
+      "sizes": "540x720",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Commandes",
+      "url": "/mobile",
+      "description": "Voir toutes les commandes"
+    },
+    {
+      "name": "Messages",
+      "url": "/mobile/messages",
+      "description": "Consulter les messages"
+    }
+  ]
+}
+

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0088cc">
+    <title>Chat - @{{ client.telegram_username or client.client_id[:8] }}</title>
+    
+    <link rel="stylesheet" href="/static/css/mobile.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <a href="/mobile" style="color: white; text-decoration: none;">← Retour</a>
+        <h1 class="header-title">@{{ client.telegram_username or client.client_id[:8] }}</h1>
+        <div></div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content" style="padding: 0;">
+        <div class="chat-container">
+            <!-- Messages Area -->
+            <div class="messages-area" id="messages-area">
+                {% for msg in messages %}
+                <div class="message {{ 'message-admin' if msg.sender == 'admin' else 'message-client' }}">
+                    <div>{{ msg.message }}</div>
+                    <div class="message-time">{{ msg.created_at.strftime('%H:%M') }}</div>
+                </div>
+                {% endfor %}
+                
+                {% if not messages %}
+                <div class="empty-state" style="padding-top: 100px;">
+                    <div class="empty-icon">💬</div>
+                    <p>Aucun message</p>
+                    <p style="font-size: 14px; margin-top: 8px;">Commencez la conversation</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Input Area -->
+            <div class="chat-input">
+                <input 
+                    type="text" 
+                    id="message-input" 
+                    placeholder="Votre message..."
+                    autocomplete="off"
+                >
+                <button class="send-btn" id="send-btn" onclick="sendMessage()">
+                    ➤
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const clientId = '{{ client.client_id }}';
+        const messagesArea = document.getElementById('messages-area');
+        const messageInput = document.getElementById('message-input');
+
+        // Auto-scroll vers le bas
+        function scrollToBottom() {
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+
+        scrollToBottom();
+
+        // Envoyer un message
+        async function sendMessage() {
+            const content = messageInput.value.trim();
+            if (!content) return;
+
+            try {
+                const response = await fetch(`/api/mobile/chat/${clientId}/send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: content })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Ajouter le message à l'interface
+                    const messageEl = document.createElement('div');
+                    messageEl.className = 'message message-admin';
+                    messageEl.innerHTML = `
+                        <div>${content}</div>
+                        <div class="message-time">À l'instant</div>
+                    `;
+                    messagesArea.appendChild(messageEl);
+
+                    // Clear input
+                    messageInput.value = '';
+                    scrollToBottom();
+                } else {
+                    alert('Erreur: ' + (data.error || 'Impossible d\'envoyer le message'));
+                }
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        }
+
+        // Envoyer avec Entrée
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Rafraîchir les messages toutes les 5 secondes
+        setInterval(() => {
+            location.reload();
+        }, 5000);
+    </script>
+</body>
+</html>
+

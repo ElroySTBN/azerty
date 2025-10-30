@@ -8,6 +8,7 @@ from src.database import init_database
 from src.client_bot import setup_client_bot
 from src.web_admin import set_client_bot
 from miniapp_railway import app as miniapp_flask
+from dashboard_v2.api_mobile import mobile
 
 load_dotenv()
 
@@ -21,7 +22,10 @@ logging.getLogger('httpx').setLevel(logging.WARNING)
 logging.getLogger('telegram').setLevel(logging.WARNING)
 
 def run_flask_app():
-    """Lance l'application Flask (Dashboard Admin + Mini App) dans un thread séparé"""
+    """Lance l'application Flask (Dashboard Admin + Mini App + Mobile Dashboard) dans un thread séparé"""
+    # Enregistrer le dashboard mobile V2
+    miniapp_flask.register_blueprint(mobile)
+    
     miniapp_flask.run(host='0.0.0.0', port=int(os.getenv('PORT', 8081)), debug=False, use_reloader=False)
 
 async def main():
@@ -66,6 +70,7 @@ async def main():
     
     logger.info("✅ Flask démarré !")
     logger.info("\n" + "="*50)
+    logger.info("📱 Dashboard Mobile: http://localhost:8081/mobile")
     logger.info("📊 Dashboard Admin: http://localhost:8081/admin")
     logger.info("🚀 Mini App: http://localhost:8081")
     logger.info("   Username: admin")
