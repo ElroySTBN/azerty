@@ -85,6 +85,16 @@ async def main():
             
             logger.info("✅ Bot Telegram démarré et connecté !")
             
+            # Afficher le chemin de la base de données pour debug
+            from bot_simple import DB_PATH
+            import os
+            logger.info(f"💾 Base de données : {DB_PATH}")
+            logger.info(f"   Chemin absolu : {os.path.abspath(DB_PATH)}")
+            logger.info(f"   Fichier existe : {os.path.exists(DB_PATH)}")
+            if os.path.exists(DB_PATH):
+                size = os.path.getsize(DB_PATH)
+                logger.info(f"   Taille : {size} octets ({size/1024:.2f} KB)")
+            
             logger.info("\n" + "="*50)
             logger.info("🎉 LE BON MOT - OPÉRATIONNEL !")
             logger.info("="*50)
