@@ -290,7 +290,7 @@ def reply(conv_id):
     
     conn = None
     try:
-    # Récupérer le telegram_id
+        # Récupérer le telegram_id
         conn = _connect_db()
         is_postgres = hasattr(conn, 'get_dsn_parameters')
         if is_postgres and PSYCOPG2_AVAILABLE:
@@ -316,7 +316,7 @@ def reply(conv_id):
         # TOUJOURS fermer la connexion
         if conn:
             try:
-    conn.close()
+                conn.close()
             except:
                 pass
     
