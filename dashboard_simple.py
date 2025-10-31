@@ -95,8 +95,8 @@ def dashboard():
     if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
     
     # Stats globales optimisées (une seule requête au lieu de 3)
     _execute(cursor, '''
