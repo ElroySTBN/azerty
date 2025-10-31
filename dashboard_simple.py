@@ -95,8 +95,8 @@ def dashboard():
     if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
     
     # Stats globales optimisées (une seule requête au lieu de 3)
     _execute(cursor, '''
@@ -117,7 +117,7 @@ def dashboard():
             c.*,
             COUNT(m.id) as message_count,
             MAX(m.created_at) as last_message_time,
-            (SELECT message FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message
+               (SELECT message FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message
         FROM conversations c
         LEFT JOIN messages m ON m.conversation_id = c.id
         GROUP BY c.id
@@ -160,8 +160,8 @@ def conversation(conv_id):
     if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
     
     # Infos de la conversation
     _execute(cursor, 'SELECT * FROM conversations WHERE id = ?', (conv_id,))
@@ -197,7 +197,7 @@ def reply(conv_id):
     if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
-        cursor = conn.cursor()
+    cursor = conn.cursor()
     _execute(cursor, 'SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
     result = cursor.fetchone()
     
@@ -653,26 +653,26 @@ DASHBOARD_TEMPLATE = '''
             </div>
             {% if orders %}
                 <div id="ordersList">
-                    {% for order in orders %}
+                {% for order in orders %}
                     <div class="card order-card" onclick="window.location.href='/conversation/{{ order.id }}'" data-service="{{ order.service_type }}" data-search="{{ (order.first_name or '') + ' ' + (order.username or '') + ' ' + (order.service_type or '') + ' ' + (order.quantity or '') + ' ' + (order.estimated_price or '') }}">
-                        <div class="card-header">
-                            <div class="card-title">
-                                👤 {{ order.first_name or 'Client' }}
-                                {% if order.username %}<small>@{{ order.username }}</small>{% endif %}
-                            </div>
-                            <span class="badge badge-success">{{ order.service_type }}</span>
+                    <div class="card-header">
+                        <div class="card-title">
+                            👤 {{ order.first_name or 'Client' }}
+                            {% if order.username %}<small>@{{ order.username }}</small>{% endif %}
                         </div>
-                        <div class="card-body">
-                            📦 Quantité : <strong>{{ order.quantity }}</strong><br>
-                            💰 Prix estimé : {{ order.estimated_price or 'À calculer' }}<br>
-                            {% if order.link and order.link != 'Aucun' %}🔗 <a href="{{ order.link }}" target="_blank" onclick="event.stopPropagation();">{{ order.link[:50] }}...</a>{% endif %}
-                        </div>
-                        <div class="card-meta">
-                            <span>🆔 <span class="telegram-id">{{ order.telegram_id }}</span></span>
-                            <span>🕐 {{ order.created_at }}</span>
-                        </div>
+                        <span class="badge badge-success">{{ order.service_type }}</span>
                     </div>
-                    {% endfor %}
+                    <div class="card-body">
+                        📦 Quantité : <strong>{{ order.quantity }}</strong><br>
+                        💰 Prix estimé : {{ order.estimated_price or 'À calculer' }}<br>
+                            {% if order.link and order.link != 'Aucun' %}🔗 <a href="{{ order.link }}" target="_blank" onclick="event.stopPropagation();">{{ order.link[:50] }}...</a>{% endif %}
+                    </div>
+                    <div class="card-meta">
+                        <span>🆔 <span class="telegram-id">{{ order.telegram_id }}</span></span>
+                        <span>🕐 {{ order.created_at }}</span>
+                    </div>
+                </div>
+                {% endfor %}
                 </div>
             {% else %}
                 <div class="empty">📭 Aucune commande pour le moment</div>
@@ -729,6 +729,11 @@ DASHBOARD_TEMPLATE = '''
         
         {% elif view == 'pricing' %}
             <h2 class="section-title">💰 Gestion des Prix</h2>
+            {% if request.args.get('success') %}
+            <div style="margin-bottom: 20px; padding: 15px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 4px; color: #155724;">
+                ✅ <strong>Prix enregistrés avec succès !</strong> Les modifications sont actives immédiatement.
+            </div>
+            {% endif %}
             <p style="margin-bottom: 20px; color: #666;">Modifiez les prix de vos services. Les modifications sont enregistrées immédiatement et persistent même après redéploiement.</p>
             
             <form method="POST" action="/pricing/update" style="background: white; padding: 20px; border-radius: 8px;">
