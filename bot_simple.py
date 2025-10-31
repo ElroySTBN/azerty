@@ -155,8 +155,8 @@ else:
 
 def _connect():
     """Connexion à la base de données (Supabase PostgreSQL ou SQLite)"""
+    # Essayer Supabase si configuré
     if USE_SUPABASE:
-        # Connexion Supabase (PostgreSQL)
         try:
             supabase_url = os.getenv('SUPABASE_URL')
             # Format: postgresql://user:password@host:port/database
@@ -184,18 +184,17 @@ def _connect():
             return conn
         except Exception as e:
             logger.error(f"❌ Erreur connexion Supabase: {e}")
-            logger.warning("⚠️ Fallback vers SQLite")
-            # Fallback automatique vers SQLite si Supabase échoue
-            # Ne peut pas modifier USE_SUPABASE global ici, donc on utilise SQLite directement
-    else:
-        # Connexion SQLite optimisée (sans WAL pour éviter problèmes de persistance)
-        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-        # Optimisations sûres qui ne compromettent pas la persistance
-        conn.execute('PRAGMA synchronous=NORMAL')  # Bon compromis vitesse/sécurité
-        conn.execute('PRAGMA cache_size=-5000')  # 5MB de cache (raisonnable)
-        conn.execute('PRAGMA temp_store=MEMORY')  # Tables temporaires en RAM
-        conn.execute('PRAGMA foreign_keys=ON')  # Activer les clés étrangères
-        return conn
+            logger.warning("⚠️ Fallback vers SQLite - connexion Supabase échouée")
+            # Continuer avec SQLite ci-dessous
+    
+    # Connexion SQLite (fallback ou si Supabase non configuré)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    # Optimisations sûres qui ne compromettent pas la persistance
+    conn.execute('PRAGMA synchronous=NORMAL')  # Bon compromis vitesse/sécurité
+    conn.execute('PRAGMA cache_size=-5000')  # 5MB de cache (raisonnable)
+    conn.execute('PRAGMA temp_store=MEMORY')  # Tables temporaires en RAM
+    conn.execute('PRAGMA foreign_keys=ON')  # Activer les clés étrangères
+    return conn
 
 def _execute(cursor, query, params=None):
     """Exécute une requête en adaptant les placeholders selon le type de DB"""
