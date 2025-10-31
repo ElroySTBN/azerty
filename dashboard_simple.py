@@ -677,15 +677,24 @@ N'hésitez pas si vous avez des questions !'''
             message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
         
         # Sauvegarder le message en DB
-        _execute(cursor, '''
-            INSERT INTO messages (conversation_id, telegram_id, message, sender)
-            VALUES (?, ?, ?, ?)
-        ''', (conv_id, telegram_id, message, 'admin'))
-        conn.commit()
+        try:
+            _execute(cursor, '''
+                INSERT INTO messages (conversation_id, telegram_id, message, sender)
+                VALUES (?, ?, ?, ?)
+            ''', (conv_id, telegram_id, message, 'admin'))
+            conn.commit()
+            print(f"✅ Message template sauvegardé pour conversation {conv_id}")
+        except Exception as e:
+            print(f"❌ Erreur lors de la sauvegarde du message : {e}")
+            try:
+                conn.rollback()
+            except:
+                pass
         
         # Envoyer via Telegram
         if bot_app and bot_loop:
-            formatted_message = f"Support 👨‍💼 : {message}"
+            # Ne pas ajouter "Support 👨‍💼 :" car le message est déjà formaté
+            formatted_message = message
             
             async def send_message():
                 try:
@@ -694,10 +703,13 @@ N'hésitez pas si vous avez des questions !'''
                         text=formatted_message,
                         parse_mode='Markdown'
                     )
+                    print(f"✅ Message Telegram envoyé à {telegram_id}")
                 except Exception as e:
-                    print(f"Erreur envoi message: {e}")
+                    print(f"❌ Erreur envoi message Telegram: {e}")
             
             asyncio.run_coroutine_threadsafe(send_message(), bot_loop)
+        else:
+            print("⚠️ Bot non disponible pour l'envoi Telegram")
         
         return redirect(f'/conversation/{conv_id}')
     finally:
