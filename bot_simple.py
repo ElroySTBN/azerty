@@ -521,6 +521,16 @@ def init_simple_db():
             )
         ''')
         
+        # Table des templates de messages (configurable depuis dashboard)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS message_templates (
+                id SERIAL PRIMARY KEY,
+                template_key TEXT UNIQUE NOT NULL,
+                template_text TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
         # Table des messages du bot (configurable depuis dashboard)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS bot_messages (
@@ -561,6 +571,56 @@ def init_simple_db():
                     VALUES (%s, %s, %s, %s)
                     ON CONFLICT (service_key) DO NOTHING
                 ''', (service_key, price, currency, name))
+        
+        # Insérer les templates par défaut si la table est vide
+        cursor.execute('SELECT COUNT(*) FROM message_templates')
+        if cursor.fetchone()[0] == 0:
+            default_templates = [
+                ('payment_crypto', '''💰 *Informations de paiement*
+
+Veuillez effectuer le paiement à l'adresse suivante :
+
+*Adresse crypto :* [VOTRE_ADRESSE_CRYPTO]
+
+*Montant :* [MONTANT]
+*Réseau :* [RESEAU]
+
+Une fois le paiement effectué, vous pouvez m'envoyer :
+• Une capture d'écran de la confirmation de transaction (c'est la solution la plus simple)
+
+Ou bien, si vous êtes à l'aise avec les cryptomonnaies :
+• Le hash de la transaction (cette longue suite de caractères qui confirme votre paiement)'''),
+                ('payment_received', '''✅ *Paiement reçu !*
+
+Merci pour votre paiement. Votre commande est maintenant en cours de traitement.
+
+*Délai estimé :* 48-72h
+
+Je vous tiendrai informé dès que la commande sera livrée. N'hésitez pas si vous avez des questions !'''),
+                ('order_confirmed', '''✅ *Commande confirmée !*
+
+Votre commande a été bien reçue et est en cours de traitement.
+
+*Récapitulatif :*
+• Service : [SERVICE]
+• Quantité : [QUANTITE]
+• Prix : [PRIX]
+
+*Délai estimé :* 48-72h
+
+Je vous tiendrai informé de l'avancement !'''),
+                ('follow_up', '''👋 Bonjour,
+
+Souhaitez-vous un point sur l'avancement de votre commande ?
+
+N'hésitez pas si vous avez des questions !''')
+            ]
+            for template_key, template_text in default_templates:
+                cursor.execute('''
+                    INSERT INTO message_templates (template_key, template_text)
+                    VALUES (%s, %s)
+                    ON CONFLICT (template_key) DO NOTHING
+                ''', (template_key, template_text))
         
         # Créer les index pour améliorer les performances
         cursor.execute('''
@@ -628,6 +688,16 @@ def init_simple_db():
                 network TEXT NOT NULL,
                 is_active INTEGER DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Table des templates de messages (configurable depuis dashboard)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS message_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                template_key TEXT UNIQUE NOT NULL,
+                template_text TEXT NOT NULL,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')

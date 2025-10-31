@@ -88,6 +88,52 @@ def get_crypto_addresses():
             except:
                 pass
 
+def get_message_templates():
+    """Charge tous les templates de messages depuis la base de données"""
+    conn = None
+    try:
+        conn = _connect_db()
+        is_postgres = hasattr(conn, 'get_dsn_parameters')
+        if is_postgres and PSYCOPG2_AVAILABLE:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        
+        try:
+            _execute(cursor, 'SELECT * FROM message_templates ORDER BY template_key')
+            templates_rows = cursor.fetchall()
+        except Exception as e:
+            print(f"⚠️ Table message_templates n'existe pas ou erreur : {e}")
+            return {}
+        
+        # Convertir en dictionnaire {template_key: template_text}
+        templates = {}
+        for row in templates_rows:
+            if is_postgres and isinstance(row, dict):
+                key = row.get('template_key')
+                text = row.get('template_text')
+            elif hasattr(row, '__getitem__') and hasattr(row, 'keys'):
+                key = row['template_key']
+                text = row['template_text']
+            else:
+                key = row[1] if len(row) > 1 else None
+                text = row[2] if len(row) > 2 else ''
+            
+            if key:
+                templates[key] = text
+        
+        return templates
+    except Exception as e:
+        print(f"Erreur get_message_templates: {e}")
+        return {}
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'lebonmot-secret-key-2024')
 
@@ -172,7 +218,8 @@ def dashboard():
             stats=stats,
             view=view,
             pricing=None,
-            crypto_addresses=crypto_addresses
+            crypto_addresses=crypto_addresses,
+            templates=None
         )
     
     # Connexion optimisée pour autres vues
@@ -249,7 +296,8 @@ def dashboard():
             stats=stats,
             view=view,
             pricing=None,
-            crypto_addresses=[]
+            crypto_addresses=[],
+            templates=None
         )
     finally:
         # TOUJOURS fermer la connexion
@@ -531,16 +579,20 @@ def delete_crypto_address(addr_id):
 @app.route('/conversation/<int:conv_id>/template', methods=['POST'])
 @login_required
 def send_template(conv_id):
-    """Envoie un template de message"""
+    """Remplit le textarea avec un template de message (au lieu d'envoyer directement)"""
     template_id = request.form.get('template_id')
     crypto_address_id = request.form.get('crypto_address_id')  # ID de l'adresse sélectionnée
     
     if not template_id:
         return jsonify({'error': 'Template introuvable'}), 400
     
-    # Templates de messages
-    templates = {
-        'payment_crypto': '''💰 *Informations de paiement*
+    # Charger les templates depuis la DB
+    templates = get_message_templates()
+    
+    # Si pas de templates en DB, utiliser les valeurs par défaut
+    if not templates:
+        templates = {
+            'payment_crypto': '''💰 *Informations de paiement*
 
 Veuillez effectuer le paiement à l'adresse suivante :
 
@@ -554,14 +606,14 @@ Une fois le paiement effectué, vous pouvez m'envoyer :
 
 Ou bien, si vous êtes à l'aise avec les cryptomonnaies :
 • Le hash de la transaction (cette longue suite de caractères qui confirme votre paiement)''',
-        'payment_received': '''✅ *Paiement reçu !*
+            'payment_received': '''✅ *Paiement reçu !*
 
 Merci pour votre paiement. Votre commande est maintenant en cours de traitement.
 
 *Délai estimé :* 48-72h
 
 Je vous tiendrai informé dès que la commande sera livrée. N'hésitez pas si vous avez des questions !''',
-        'order_confirmed': '''✅ *Commande confirmée !*
+            'order_confirmed': '''✅ *Commande confirmée !*
 
 Votre commande a été bien reçue et est en cours de traitement.
 
@@ -573,12 +625,12 @@ Votre commande a été bien reçue et est en cours de traitement.
 *Délai estimé :* 48-72h
 
 Je vous tiendrai informé de l'avancement !''',
-        'follow_up': '''👋 Bonjour,
+            'follow_up': '''👋 Bonjour,
 
 Souhaitez-vous un point sur l'avancement de votre commande ?
 
 N'hésitez pas si vous avez des questions !'''
-    }
+        }
     
     if template_id not in templates:
         return jsonify({'error': 'Template introuvable'}), 400
@@ -626,57 +678,48 @@ N'hésitez pas si vous avez des questions !'''
                     return conv[idx] or default
                 return default
         
-        # Si c'est payment_crypto avec une adresse sélectionnée, rediriger vers prévisualisation
-        if crypto_address_id and template_id == 'payment_crypto':
-            return redirect(f'/conversation/{conv_id}/preview?crypto_address_id={crypto_address_id}')
-        
-        # Remplacer les variables [VARIABLE] par les valeurs réelles pour les autres templates
+        # Remplacer les variables [VARIABLE] par les valeurs réelles
         message = message.replace('[SERVICE]', get_conv_value('service_type', 'Service'))
         message = message.replace('[QUANTITE]', str(get_conv_value('quantity', '?')))
         message = message.replace('[PRIX]', get_conv_value('estimated_price', 'À calculer'))
         message = message.replace('[MONTANT]', get_conv_value('estimated_price', 'À calculer'))
         
-        # Pour payment_crypto sans adresse (ne devrait pas arriver normalement)
-        if template_id == 'payment_crypto':
+        # Pour payment_crypto, remplir l'adresse et le réseau si fournis
+        if template_id == 'payment_crypto' and crypto_address_id:
+            try:
+                addr_id = int(crypto_address_id)
+                if is_postgres:
+                    _execute(cursor, "SELECT * FROM crypto_addresses WHERE id = ? AND is_active = TRUE", (addr_id,))
+                else:
+                    _execute(cursor, 'SELECT * FROM crypto_addresses WHERE id = ? AND is_active = 1', (addr_id,))
+                
+                crypto_addr = cursor.fetchone()
+                if crypto_addr:
+                    if is_postgres and isinstance(crypto_addr, dict):
+                        crypto_address = crypto_addr.get('address', '')
+                        crypto_network = crypto_addr.get('network', '')
+                    elif hasattr(crypto_addr, '__getitem__') and hasattr(crypto_addr, 'keys'):
+                        crypto_address = crypto_addr['address'] if 'address' in crypto_addr.keys() else (crypto_addr[2] if len(crypto_addr) > 2 else '')
+                        crypto_network = crypto_addr['network'] if 'network' in crypto_addr.keys() else (crypto_addr[3] if len(crypto_addr) > 3 else '')
+                    else:
+                        crypto_address = crypto_addr[2] if len(crypto_addr) > 2 else ''
+                        crypto_network = crypto_addr[3] if len(crypto_addr) > 3 else ''
+                    
+                    message = message.replace('[VOTRE_ADRESSE_CRYPTO]', crypto_address)
+                    message = message.replace('[RESEAU]', crypto_network)
+                else:
+                    message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
+                    message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
+            except Exception as e:
+                print(f"⚠️ Erreur récupération adresse crypto: {e}")
+                message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
+                message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
+        elif template_id == 'payment_crypto':
             message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
             message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
         
-        # Sauvegarder le message en DB
-        try:
-            _execute(cursor, '''
-                INSERT INTO messages (conversation_id, telegram_id, message, sender)
-                VALUES (?, ?, ?, ?)
-            ''', (conv_id, telegram_id, message, 'admin'))
-            conn.commit()
-            print(f"✅ Message template sauvegardé pour conversation {conv_id}")
-        except Exception as e:
-            print(f"❌ Erreur lors de la sauvegarde du message : {e}")
-            try:
-                conn.rollback()
-            except:
-                pass
-        
-        # Envoyer via Telegram
-        if bot_app and bot_loop:
-            # Ne pas ajouter "Support 👨‍💼 :" car le message est déjà formaté
-            formatted_message = message
-            
-            async def send_message():
-                try:
-                    await bot_app.bot.send_message(
-                        chat_id=telegram_id,
-                        text=formatted_message,
-                        parse_mode='Markdown'
-                    )
-                    print(f"✅ Message Telegram envoyé à {telegram_id}")
-                except Exception as e:
-                    print(f"❌ Erreur envoi message Telegram: {e}")
-            
-            asyncio.run_coroutine_threadsafe(send_message(), bot_loop)
-        else:
-            print("⚠️ Bot non disponible pour l'envoi Telegram")
-        
-        return redirect(f'/conversation/{conv_id}')
+        # Retourner le message rempli en JSON pour remplir le textarea
+        return jsonify({'message': message})
     finally:
         # TOUJOURS fermer la connexion
         if conn:
@@ -685,15 +728,10 @@ N'hésitez pas si vous avez des questions !'''
             except:
                 pass
 
-@app.route('/conversation/<int:conv_id>/preview', methods=['GET'])
+@app.route('/templates/update', methods=['POST'])
 @login_required
-def preview_template(conv_id):
-    """Affiche une page de prévisualisation/édition du message payment_crypto avant envoi"""
-    crypto_address_id = request.args.get('crypto_address_id')
-    
-    if not crypto_address_id:
-        return redirect(f'/conversation/{conv_id}')
-    
+def update_templates():
+    """Met à jour les templates de messages depuis le dashboard"""
     conn = None
     try:
         conn = _connect_db()
@@ -704,142 +742,32 @@ def preview_template(conv_id):
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
         
-        # Récupérer les infos de la conversation
-        _execute(cursor, 'SELECT * FROM conversations WHERE id = ?', (conv_id,))
-        conv = cursor.fetchone()
+        template_keys = ['payment_crypto', 'payment_received', 'order_confirmed', 'follow_up']
         
-        if not conv:
-            return "Conversation introuvable", 404
+        for template_key in template_keys:
+            template_text = request.form.get(f'template_{template_key}')
+            if template_text:
+                # Vérifier si le template existe déjà
+                _execute(cursor, 'SELECT id FROM message_templates WHERE template_key = ?', (template_key,))
+                exists = cursor.fetchone()
+                
+                if exists:
+                    # Mettre à jour
+                    _execute(cursor, '''
+                        UPDATE message_templates 
+                        SET template_text = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE template_key = ?
+                    ''', (template_text, template_key))
+                else:
+                    # Insérer
+                    _execute(cursor, '''
+                        INSERT INTO message_templates (template_key, template_text)
+                        VALUES (?, ?)
+                    ''', (template_key, template_text))
         
-        # Fonction helper pour extraire valeur depuis conv
-        def get_conv_value(key, default=''):
-            if is_postgres and isinstance(conv, dict):
-                return conv.get(key, default)
-            elif hasattr(conv, '__getitem__') and hasattr(conv, 'keys'):
-                return conv.get(key, default) if hasattr(conv, 'get') else conv[key]
-            else:
-                index_map = {'service_type': 3, 'quantity': 4, 'estimated_price': 7}
-                idx = index_map.get(key, -1)
-                if idx >= 0 and conv and len(conv) > idx:
-                    return conv[idx] or default
-                return default
+        conn.commit()
         
-        # Récupérer l'adresse crypto
-        addr_id = int(crypto_address_id)
-        if is_postgres:
-            _execute(cursor, "SELECT * FROM crypto_addresses WHERE id = ? AND is_active = TRUE", (addr_id,))
-        else:
-            _execute(cursor, 'SELECT * FROM crypto_addresses WHERE id = ? AND is_active = 1', (addr_id,))
-        
-        crypto_addr = cursor.fetchone()
-        if not crypto_addr:
-            return redirect(f'/conversation/{conv_id}?error=crypto_not_found')
-        
-        # Extraire l'adresse et le réseau
-        if is_postgres and isinstance(crypto_addr, dict):
-            crypto_address = crypto_addr.get('address', '')
-            crypto_network = crypto_addr.get('network', '')
-        elif hasattr(crypto_addr, '__getitem__') and hasattr(crypto_addr, 'keys'):
-            crypto_address = crypto_addr['address'] if 'address' in crypto_addr.keys() else (crypto_addr[2] if len(crypto_addr) > 2 else '')
-            crypto_network = crypto_addr['network'] if 'network' in crypto_addr.keys() else (crypto_addr[3] if len(crypto_addr) > 3 else '')
-        else:
-            crypto_address = crypto_addr[2] if len(crypto_addr) > 2 else ''
-            crypto_network = crypto_addr[3] if len(crypto_addr) > 3 else ''
-        
-        # Construire le message avec les variables remplacées
-        template = '''💰 *Informations de paiement*
-
-Veuillez effectuer le paiement à l'adresse suivante :
-
-*Adresse crypto :* [VOTRE_ADRESSE_CRYPTO]
-
-*Montant :* [MONTANT]
-*Réseau :* [RESEAU]
-
-Une fois le paiement effectué, vous pouvez m'envoyer :
-• Une capture d'écran de la confirmation de transaction (c'est la solution la plus simple)
-
-Ou bien, si vous êtes à l'aise avec les cryptomonnaies :
-• Le hash de la transaction (cette longue suite de caractères qui confirme votre paiement)'''
-        
-        message = template.replace('[VOTRE_ADRESSE_CRYPTO]', crypto_address)
-        message = message.replace('[MONTANT]', get_conv_value('estimated_price', 'À calculer'))
-        message = message.replace('[RESEAU]', crypto_network)
-        
-        return render_template_string(PREVIEW_TEMPLATE, conv_id=conv_id, message=message, crypto_address_id=crypto_address_id)
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
-
-@app.route('/conversation/<int:conv_id>/send', methods=['POST'])
-@login_required
-def send_final_message(conv_id):
-    """Envoie le message final (modifié ou non) au client"""
-    message = request.form.get('message')
-    crypto_address_id = request.form.get('crypto_address_id')
-    
-    if not message:
-        return redirect(f'/conversation/{conv_id}?error=empty_message')
-    
-    conn = None
-    try:
-        conn = _connect_db()
-        is_postgres = hasattr(conn, 'get_dsn_parameters')
-        if is_postgres and PSYCOPG2_AVAILABLE:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-        else:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-        
-        # Récupérer le telegram_id
-        _execute(cursor, 'SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
-        result = cursor.fetchone()
-        
-        if not result:
-            return redirect(f'/conversation/{conv_id}?error=conv_not_found')
-        
-        # Extraire telegram_id selon le format
-        if is_postgres and isinstance(result, dict):
-            telegram_id = result.get('telegram_id')
-        elif hasattr(result, '__getitem__') and hasattr(result, 'keys'):
-            telegram_id = result['telegram_id']
-        else:
-            telegram_id = result[1] if result and len(result) > 1 else None
-        
-        # Sauvegarder le message en DB
-        try:
-            _execute(cursor, '''
-                INSERT INTO messages (conversation_id, telegram_id, message, sender)
-                VALUES (?, ?, ?, ?)
-            ''', (conv_id, telegram_id, message, 'admin'))
-            conn.commit()
-            print(f"✅ Message final sauvegardé pour conversation {conv_id}")
-        except Exception as e:
-            print(f"❌ Erreur lors de la sauvegarde du message : {e}")
-            try:
-                conn.rollback()
-            except:
-                pass
-        
-        # Envoyer via Telegram
-        if bot_app and bot_loop:
-            async def send_message():
-                try:
-                    await bot_app.bot.send_message(
-                        chat_id=telegram_id,
-                        text=message,
-                        parse_mode='Markdown'
-                    )
-                    print(f"✅ Message Telegram envoyé à {telegram_id}")
-                except Exception as e:
-                    print(f"❌ Erreur envoi message Telegram: {e}")
-            
-            asyncio.run_coroutine_threadsafe(send_message(), bot_loop)
-        
-        return redirect(f'/conversation/{conv_id}?success=message_sent')
+        return redirect('/?view=templates&success=1')
     finally:
         if conn:
             try:
@@ -1099,6 +1027,9 @@ DASHBOARD_TEMPLATE = '''
             </a>
             <a href="/?view=crypto" class="tab {% if view == 'crypto' %}active{% endif %}">
                 ₿ Adresses Crypto
+            </a>
+            <a href="/?view=templates" class="tab {% if view == 'templates' %}active{% endif %}">
+                📝 Templates
             </a>
         </div>
         
@@ -1380,6 +1311,45 @@ DASHBOARD_TEMPLATE = '''
                 <strong>💡 Note :</strong> Les adresses crypto sont stockées dans la base de données et persistent même après redéploiement. 
                 Vous pouvez les sélectionner lors de l'envoi de messages de paiement depuis les conversations.
             </div>
+        
+        {% elif view == 'templates' %}
+            <h2 class="section-title">📝 Gestion des Templates de Messages</h2>
+            {% if request.args.get('success') %}
+            <div style="margin-bottom: 20px; padding: 15px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 4px; color: #155724;">
+                ✅ <strong>Templates enregistrés avec succès !</strong> Les modifications sont actives immédiatement.
+            </div>
+            {% endif %}
+            <p style="margin-bottom: 20px; color: #666;">Modifiez les templates de messages utilisés pour communiquer avec les clients. Les variables comme [SERVICE], [QUANTITE], [PRIX], [MONTANT], [VOTRE_ADRESSE_CRYPTO], [RESEAU] seront remplacées automatiquement.</p>
+            
+            <form method="POST" action="/templates/update" style="background: white; padding: 20px; border-radius: 8px;">
+                {% set template_names = {
+                    'payment_crypto': '💰 Paiement Crypto',
+                    'payment_received': '✅ Paiement reçu',
+                    'order_confirmed': '✅ Commande confirmée',
+                    'follow_up': '👋 Suivi'
+                } %}
+                
+                {% for template_key, template_name in template_names.items() %}
+                <div style="margin-bottom: 30px;">
+                    <h3 style="margin-bottom: 10px; color: #333; font-size: 18px;">{{ template_name }}</h3>
+                    <textarea name="template_{{ template_key }}" 
+                              style="width: 100%; min-height: 200px; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 13px; line-height: 1.5; resize: vertical;" 
+                              required>{% if templates %}{{ templates.get(template_key, '') }}{% endif %}</textarea>
+                    <p style="margin-top: 5px; font-size: 12px; color: #666;">Variables disponibles : [SERVICE], [QUANTITE], [PRIX], [MONTANT]{% if template_key == 'payment_crypto' %}, [VOTRE_ADRESSE_CRYPTO], [RESEAU]{% endif %}</p>
+                </div>
+                {% endfor %}
+                
+                <div style="margin-top: 20px; text-align: right;">
+                    <button type="submit" style="background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: 600;">
+                        💾 Enregistrer les Templates
+                    </button>
+                </div>
+            </form>
+            
+            <div style="margin-top: 20px; padding: 15px; background: #fffbea; border-left: 4px solid #ffd700; border-radius: 4px;">
+                <strong>💡 Note :</strong> Les templates sont stockés dans la base de données (Supabase ou SQLite). 
+                Ils persistent même après redéploiement et sont utilisés immédiatement dans les conversations.
+            </div>
         {% endif %}
     </div>
 </body>
@@ -1534,23 +1504,14 @@ CONVERSATION_TEMPLATE = '''
         {% endfor %}
     </div>
     
-    <div style="background: white; padding: 15px; border-top: 1px solid #ddd;">
+            <div style="background: white; padding: 15px; border-top: 1px solid #ddd;">
         <div style="margin-bottom: 15px;">
             <div style="font-weight: 600; margin-bottom: 10px; color: #667eea;">📝 Templates rapides :</div>
             <div class="template-buttons">
                 <button type="button" onclick="showCryptoModal()" class="template-btn" style="background: #667eea; color: white;">💰 Paiement Crypto</button>
-                <form method="POST" action="/conversation/{{ conv.id }}/template" style="display: inline;">
-                    <input type="hidden" name="template_id" value="payment_received">
-                    <button type="submit" class="template-btn" style="background: #28a745; color: white;">✅ Paiement reçu</button>
-                </form>
-                <form method="POST" action="/conversation/{{ conv.id }}/template" style="display: inline;">
-                    <input type="hidden" name="template_id" value="order_confirmed">
-                    <button type="submit" class="template-btn" style="background: #17a2b8; color: white;">✅ Commande confirmée</button>
-                </form>
-                <form method="POST" action="/conversation/{{ conv.id }}/template" style="display: inline;">
-                    <input type="hidden" name="template_id" value="follow_up">
-                    <button type="submit" class="template-btn" style="background: #ffc107; color: #333;">👋 Suivi</button>
-                </form>
+                <button type="button" onclick="loadTemplate('payment_received')" class="template-btn" style="background: #28a745; color: white;">✅ Paiement reçu</button>
+                <button type="button" onclick="loadTemplate('order_confirmed')" class="template-btn" style="background: #17a2b8; color: white;">✅ Commande confirmée</button>
+                <button type="button" onclick="loadTemplate('follow_up')" class="template-btn" style="background: #ffc107; color: #333;">👋 Suivi</button>
             </div>
         </div>
     </div>
@@ -1559,11 +1520,11 @@ CONVERSATION_TEMPLATE = '''
     <div id="cryptoModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
         <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
             <h3 style="margin-bottom: 20px; color: #333;">₿ Choisir une adresse crypto</h3>
-            <form method="POST" action="/conversation/{{ conv.id }}/template" id="cryptoForm">
+            <form id="cryptoForm" onsubmit="return loadCryptoTemplate(event);">
                 <input type="hidden" name="template_id" value="payment_crypto">
                 <div style="margin-bottom: 15px;">
                     <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #666;">Sélectionnez une adresse :</label>
-                    <select name="crypto_address_id" required style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;">
+                    <select name="crypto_address_id" id="cryptoAddressSelect" required style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;">
                         <option value="">-- Choisir une adresse --</option>
                         {% for addr in crypto_addresses %}
                         <option value="{{ addr.id }}">{{ addr.name }} ({{ addr.network }})</option>
@@ -1580,7 +1541,7 @@ CONVERSATION_TEMPLATE = '''
                         Annuler
                     </button>
                     <button type="submit" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                        Envoyer
+                        Utiliser ce template
                     </button>
                 </div>
             </form>
@@ -1597,55 +1558,68 @@ CONVERSATION_TEMPLATE = '''
         const messages = document.getElementById('messages');
         messages.scrollTop = messages.scrollHeight;
         
-        // Templates de messages avec valeurs réelles (rendues côté serveur)
-        const convData = {
-            service: '{{ conv.service_type or "Service" }}',
-            quantity: '{{ conv.quantity or "?" }}',
-            price: '{{ conv.estimated_price or "À calculer" }}'
-        };
+        function loadTemplate(templateId) {
+            const formData = new FormData();
+            formData.append('template_id', templateId);
+            
+            fetch('/conversation/{{ conv.id }}/template', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    const textarea = document.getElementById('messageTextarea');
+                    textarea.value = data.message;
+                    textarea.focus();
+                    // Scroll vers le textarea
+                    textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else if (data.error) {
+                    alert('Erreur : ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+                alert('Une erreur est survenue lors du chargement du template');
+            });
+        }
         
-        const templates = {
-            'payment_crypto': `💰 *Informations de paiement*
-
-Veuillez effectuer le paiement à l'adresse suivante :
-
-*Adresse crypto :* [VOTRE_ADRESSE_CRYPTO]
-
-*Montant :* ` + convData.price + `
-*Réseau :* Bitcoin / Ethereum / USDT
-
-Une fois le paiement effectué, merci de m'envoyer la confirmation de transaction (hash).`,
-            'payment_received': `✅ *Paiement reçu !*
-
-Merci pour votre paiement. Votre commande est maintenant en cours de traitement.
-
-*Délai estimé :* 48-72h
-
-Je vous tiendrai informé dès que la commande sera livrée. N'hésitez pas si vous avez des questions !`,
-            'order_confirmed': `✅ *Commande confirmée !*
-
-Votre commande a été bien reçue et est en cours de traitement.
-
-*Récapitulatif :*
-• Service : ` + convData.service + `
-• Quantité : ` + convData.quantity + `
-• Prix : ` + convData.price + `
-
-*Délai estimé :* 48-72h
-
-Je vous tiendrai informé de l'avancement !`,
-            'follow_up': `👋 Bonjour,
-
-Souhaitez-vous un point sur l'avancement de votre commande ?
-
-N'hésitez pas si vous avez des questions !`
-        };
-        
-        function insertTemplate(templateId) {
-            const textarea = document.getElementById('messageTextarea');
-            let template = templates[templateId];
-            textarea.value = template;
-            textarea.focus();
+        function loadCryptoTemplate(event) {
+            event.preventDefault();
+            const cryptoAddressId = document.getElementById('cryptoAddressSelect').value;
+            
+            if (!cryptoAddressId) {
+                alert('Veuillez sélectionner une adresse crypto');
+                return false;
+            }
+            
+            const formData = new FormData();
+            formData.append('template_id', 'payment_crypto');
+            formData.append('crypto_address_id', cryptoAddressId);
+            
+            fetch('/conversation/{{ conv.id }}/template', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    const textarea = document.getElementById('messageTextarea');
+                    textarea.value = data.message;
+                    textarea.focus();
+                    closeCryptoModal();
+                    // Scroll vers le textarea
+                    textarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else if (data.error) {
+                    alert('Erreur : ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+                alert('Une erreur est survenue lors du chargement du template');
+            });
+            
+            return false;
         }
         
         function showCryptoModal() {
