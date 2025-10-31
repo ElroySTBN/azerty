@@ -549,7 +549,11 @@ Veuillez effectuer le paiement à l'adresse suivante :
 *Montant :* [MONTANT]
 *Réseau :* [RESEAU]
 
-Une fois le paiement effectué, merci de m'envoyer la confirmation de transaction (hash).''',
+Une fois le paiement effectué, vous pouvez m'envoyer :
+• Une capture d'écran de la confirmation de transaction (c'est la solution la plus simple)
+
+Ou bien, si vous êtes à l'aise avec les cryptomonnaies :
+• Le hash de la transaction (cette longue suite de caractères qui confirme votre paiement)''',
         'payment_received': '''✅ *Paiement reçu !*
 
 Merci pour votre paiement. Votre commande est maintenant en cours de traitement.
@@ -622,57 +626,18 @@ N'hésitez pas si vous avez des questions !'''
                     return conv[idx] or default
                 return default
         
-        # Remplacer les variables [VARIABLE] par les valeurs réelles
+        # Si c'est payment_crypto avec une adresse sélectionnée, rediriger vers prévisualisation
+        if crypto_address_id and template_id == 'payment_crypto':
+            return redirect(f'/conversation/{conv_id}/preview?crypto_address_id={crypto_address_id}')
+        
+        # Remplacer les variables [VARIABLE] par les valeurs réelles pour les autres templates
         message = message.replace('[SERVICE]', get_conv_value('service_type', 'Service'))
         message = message.replace('[QUANTITE]', str(get_conv_value('quantity', '?')))
         message = message.replace('[PRIX]', get_conv_value('estimated_price', 'À calculer'))
         message = message.replace('[MONTANT]', get_conv_value('estimated_price', 'À calculer'))
         
-        # Récupérer l'adresse crypto si sélectionnée
-        if crypto_address_id and template_id == 'payment_crypto':
-            try:
-                # Convertir en entier
-                addr_id = int(crypto_address_id)
-                # Adapter la condition is_active selon le type de DB
-                if is_postgres:
-                    _execute(cursor, "SELECT * FROM crypto_addresses WHERE id = ? AND is_active = TRUE", (addr_id,))
-                else:
-                    _execute(cursor, 'SELECT * FROM crypto_addresses WHERE id = ? AND is_active = 1', (addr_id,))
-                
-                crypto_addr = cursor.fetchone()
-                if crypto_addr:
-                    # Extraire l'adresse et le réseau selon le format de la DB
-                    if is_postgres and isinstance(crypto_addr, dict):
-                        crypto_address = crypto_addr.get('address', 'VOTRE_ADRESSE_ICI')
-                        crypto_network = crypto_addr.get('network', 'Bitcoin / Ethereum / USDT')
-                    elif hasattr(crypto_addr, '__getitem__') and hasattr(crypto_addr, 'keys'):
-                        # SQLite Row object (id=0, name=1, address=2, network=3, is_active=4)
-                        crypto_address = crypto_addr['address'] if 'address' in crypto_addr.keys() else (crypto_addr[2] if len(crypto_addr) > 2 else 'VOTRE_ADRESSE_ICI')
-                        crypto_network = crypto_addr['network'] if 'network' in crypto_addr.keys() else (crypto_addr[3] if len(crypto_addr) > 3 else 'Bitcoin / Ethereum / USDT')
-                    else:
-                        # Tuple fallback (id, name, address, network, is_active)
-                        crypto_address = crypto_addr[2] if len(crypto_addr) > 2 else 'VOTRE_ADRESSE_ICI'
-                        crypto_network = crypto_addr[3] if len(crypto_addr) > 3 else 'Bitcoin / Ethereum / USDT'
-                    
-                    message = message.replace('[VOTRE_ADRESSE_CRYPTO]', crypto_address)
-                    message = message.replace('[RESEAU]', crypto_network)
-                    print(f"✅ Adresse crypto utilisée : {crypto_address[:20]}... ({crypto_network})")
-                else:
-                    print(f"⚠️ Adresse crypto introuvable (ID: {addr_id})")
-                    message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
-                    message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
-            except (ValueError, TypeError) as e:
-                print(f"⚠️ Erreur lors de la récupération de l'adresse crypto : {e}")
-                message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
-                message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
-            except Exception as e:
-                print(f"❌ Erreur inattendue lors de la récupération de l'adresse crypto : {e}")
-                message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
-                message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
-        else:
-            # Pas d'adresse sélectionnée ou template différent
-            if template_id == 'payment_crypto':
-                print("⚠️ Aucune adresse crypto sélectionnée pour le template payment_crypto")
+        # Pour payment_crypto sans adresse (ne devrait pas arriver normalement)
+        if template_id == 'payment_crypto':
             message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
             message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
         
@@ -1538,6 +1503,142 @@ N'hésitez pas si vous avez des questions !`
                 }
             });
         }
+    </script>
+</body>
+</html>
+'''
+
+PREVIEW_TEMPLATE = '''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Prévisualisation - Reputalys</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .preview-box {
+            background: #f9f9f9;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-size: 15px;
+            line-height: 1.6;
+            color: #333;
+        }
+        textarea {
+            width: 100%;
+            min-height: 300px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: vertical;
+            margin-bottom: 20px;
+        }
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+        }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .btn-cancel {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-cancel:hover {
+            background: #5a6268;
+        }
+        .btn-send {
+            background: #667eea;
+            color: white;
+        }
+        .btn-send:hover {
+            background: #5568d3;
+        }
+        .info {
+            background: #fffbea;
+            border-left: 4px solid #ffd700;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📝 Prévisualisation du message</h1>
+            <p style="color: #666; margin-top: 5px;">Vérifiez et modifiez le message avant de l'envoyer au client.</p>
+        </div>
+        
+        <div class="info">
+            💡 <strong>Astuce :</strong> Vous pouvez modifier le message ci-dessous avant de l'envoyer. Les variables ont déjà été remplacées par les valeurs réelles.
+        </div>
+        
+        <div>
+            <label style="display: block; margin-bottom: 10px; font-weight: 600; color: #333;">Message à envoyer :</label>
+            <form method="POST" action="/conversation/{{ conv_id }}/send">
+                <input type="hidden" name="crypto_address_id" value="{{ crypto_address_id }}">
+                <textarea name="message" id="messageText">{{ message }}</textarea>
+                
+                <div class="button-group">
+                    <a href="/conversation/{{ conv_id }}" class="btn-cancel" style="text-decoration: none; display: inline-block; text-align: center;">Annuler</a>
+                    <button type="submit" class="btn-send">📤 Envoyer le message</button>
+                </div>
+            </form>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+            <h3 style="margin-bottom: 10px; color: #333;">Aperçu (Markdown) :</h3>
+            <div class="preview-box" id="preview">{{ message }}</div>
+        </div>
+    </div>
+    
+    <script>
+        // Mise à jour de l'aperçu en temps réel
+        const textarea = document.getElementById('messageText');
+        const preview = document.getElementById('preview');
+        
+        textarea.addEventListener('input', function() {
+            preview.textContent = this.value;
+        });
     </script>
 </body>
 </html>
