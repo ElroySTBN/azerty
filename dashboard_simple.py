@@ -222,6 +222,25 @@ def dashboard():
             templates=None
         )
     
+    # Si vue templates, charger les templates
+    if view == 'templates':
+        templates = get_message_templates()
+        stats = {
+            'total_orders': 0,
+            'total_clients': 0,
+            'total_messages': 0
+        }
+        return render_template_string(
+            DASHBOARD_TEMPLATE, 
+            conversations=[],
+            orders=[],
+            stats=stats,
+            view=view,
+            pricing=None,
+            crypto_addresses=[],
+            templates=templates
+        )
+    
     # Connexion optimisée pour autres vues
     conn = None
     try:
