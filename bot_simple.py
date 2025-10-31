@@ -28,8 +28,8 @@ if os.getenv('SUPABASE_URL') or os.getenv('SUPABASE_DB_HOST'):
         USE_SUPABASE = False
         SUPABASE_FAILED = True
 
-# Grille tarifaire
-PRICING = {
+# Grille tarifaire par défaut (utilisée si pas de prix en DB)
+PRICING_DEFAULT = {
     'google': {'price': 18, 'currency': 'EUR', 'name': 'Avis Google'},
     'trustpilot': {'price': 16, 'currency': 'EUR', 'name': 'Trustpilot'},
     'forum': {'price': 5, 'currency': 'EUR', 'name': 'Message Forum'},
@@ -37,6 +37,61 @@ PRICING = {
     'autre_plateforme': {'price': 15, 'currency': 'EUR', 'name': 'Autre plateforme'},
     'suppression': {'price': 'Sur devis', 'currency': '', 'name': 'Suppression de liens'}
 }
+
+# Variable globale pour le cache des prix (rechargée après init DB)
+PRICING = PRICING_DEFAULT.copy()
+
+def get_pricing():
+    """Charge les prix depuis la base de données, avec fallback sur les valeurs par défaut"""
+    try:
+        conn = _connect()
+        cursor = conn.cursor()
+        
+        pricing = {}
+        _execute(cursor, 'SELECT service_key, price, currency, name FROM pricing')
+        results = cursor.fetchall()
+        
+        # Convertir les résultats en dictionnaire
+        for row in results:
+            service_key = row[0]
+            price_val = row[1]
+            currency = row[2] or 'EUR'
+            name = row[3]
+            pricing[service_key] = {
+                'price': price_val,
+                'currency': currency,
+                'name': name
+            }
+        
+        conn.close()
+        
+        # Si aucun prix en DB, utiliser les valeurs par défaut
+        if not pricing:
+            return PRICING_DEFAULT.copy()
+        
+        # Ajouter les services par défaut qui ne sont pas en DB
+        for key, value in PRICING_DEFAULT.items():
+            if key not in pricing:
+                pricing[key] = value
+        
+        return pricing
+    except Exception as e:
+        logger.warning(f"⚠️ Erreur chargement prix depuis DB: {e}, utilisation des valeurs par défaut")
+        try:
+            conn.close()
+        except:
+            pass
+        return PRICING_DEFAULT.copy()
+
+def get_service_price(service_key):
+    """Récupère le prix d'un service spécifique"""
+    pricing = get_pricing()
+    return pricing.get(service_key, PRICING_DEFAULT.get(service_key, {'price': 0, 'currency': 'EUR', 'name': service_key}))
+
+def reload_pricing():
+    """Recharge les prix depuis la DB (à appeler après modification)"""
+    global PRICING
+    PRICING = get_pricing()
 
 # État des conversations
 user_conversations = {}
@@ -54,7 +109,7 @@ def _get_recap(state):
     
     service_type = state.get('service_type')
     if service_type:
-        service_info = PRICING.get(service_type, {})
+        service_info = get_service_price(service_type)
         recap += f"\n🔹 Service : *{service_info.get('name', service_type)}*"
     
     quantity = state.get('quantity')
@@ -341,6 +396,36 @@ def init_simple_db():
             )
         ''')
         
+        # Table des prix (configurable depuis dashboard)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS pricing (
+                id SERIAL PRIMARY KEY,
+                service_key TEXT UNIQUE NOT NULL,
+                price TEXT NOT NULL,
+                currency TEXT DEFAULT 'EUR',
+                name TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Insérer les prix par défaut si la table est vide
+        cursor.execute('SELECT COUNT(*) FROM pricing')
+        if cursor.fetchone()[0] == 0:
+            default_prices = [
+                ('google', '18', 'EUR', 'Avis Google'),
+                ('trustpilot', '16', 'EUR', 'Trustpilot'),
+                ('forum', '5', 'EUR', 'Message Forum'),
+                ('pagesjaunes', '15', 'EUR', 'Pages Jaunes'),
+                ('autre_plateforme', '15', 'EUR', 'Autre plateforme'),
+                ('suppression', 'Sur devis', '', 'Suppression de liens')
+            ]
+            for service_key, price, currency, name in default_prices:
+                cursor.execute('''
+                    INSERT INTO pricing (service_key, price, currency, name)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (service_key) DO NOTHING
+                ''', (service_key, price, currency, name))
+        
         # Créer les index pour améliorer les performances
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_conversations_telegram_id 
@@ -385,10 +470,43 @@ def init_simple_db():
                 FOREIGN KEY (conversation_id) REFERENCES conversations(id)
             )
         ''')
+        
+        # Table des prix (configurable depuis dashboard)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS pricing (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                service_key TEXT UNIQUE NOT NULL,
+                price TEXT NOT NULL,
+                currency TEXT DEFAULT 'EUR',
+                name TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Insérer les prix par défaut si la table est vide
+        cursor.execute('SELECT COUNT(*) FROM pricing')
+        if cursor.fetchone()[0] == 0:
+            default_prices = [
+                ('google', '18', 'EUR', 'Avis Google'),
+                ('trustpilot', '16', 'EUR', 'Trustpilot'),
+                ('forum', '5', 'EUR', 'Message Forum'),
+                ('pagesjaunes', '15', 'EUR', 'Pages Jaunes'),
+                ('autre_plateforme', '15', 'EUR', 'Autre plateforme'),
+                ('suppression', 'Sur devis', '', 'Suppression de liens')
+            ]
+            for service_key, price, currency, name in default_prices:
+                cursor.execute('''
+                    INSERT OR IGNORE INTO pricing (service_key, price, currency, name)
+                    VALUES (?, ?, ?, ?)
+                ''', (service_key, price, currency, name))
     
     conn.commit()
     conn.close()
     logger.info("✅ Base de données simple initialisée")
+    
+    # Recharger les prix depuis la DB après initialisation
+    global PRICING
+    PRICING = get_pricing()
 
 def save_message(telegram_id, message, sender='client'):
     """Sauvegarde un message"""
@@ -580,7 +698,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_conversations[telegram_id]['service_type'] = service
         user_conversations[telegram_id]['step'] = 'quantity'
         
-        service_info = PRICING[service]
+        service_info = get_service_price(service)
         recap = _get_recap(user_conversations[telegram_id])
         
         keyboard = [
@@ -634,7 +752,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if orders:
             orders_text = "📋 **Vos commandes récentes**\n\n"
             for order in orders:
-                service_name = PRICING.get(order['service_type'], {}).get('name', order['service_type'])
+                service_info = get_service_price(order['service_type'])
+                service_name = service_info.get('name', order['service_type'])
                 orders_text += f"• **{service_name}** - {order['quantity']}\n"
                 orders_text += f"  💰 {order['estimated_price']}\n"
                 created_at = str(order['created_at'])
@@ -695,16 +814,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Finaliser le devis (copier la logique de handle_message step='details')
         service_type = state.get('service_type', 'autre_plateforme')
         quantity = state.get('quantity', '?')
-        service_info = PRICING[service_type]
+        service_info = get_service_price(service_type)
         
         try:
             qty_num = int(''.join(filter(str.isdigit, quantity)))
-            if service_info['price'] == 'Sur devis':
+            price_val = service_info.get('price', 0)
+            if price_val == 'Sur devis' or str(price_val).lower() == 'sur devis':
                 price_text = "*Sur devis* (notre équipe vous contactera)"
             else:
-                total = qty_num * service_info['price']
-                price_text = f"*≈ {total} {service_info['currency']}*"
-                state['estimated_price'] = f"{total} {service_info['currency']}"
+                # Convertir le prix en nombre si c'est une chaîne
+                price_num = float(price_val) if isinstance(price_val, str) and price_val.replace('.', '').replace('-', '').isdigit() else float(price_val)
+                total = qty_num * price_num
+                currency = service_info.get('currency', 'EUR')
+                price_text = f"*≈ {total} {currency}*"
+                state['estimated_price'] = f"{total} {currency}"
         except:
             price_text = "*À calculer* (quantité à préciser)"
             state['estimated_price'] = "À calculer"
@@ -923,17 +1046,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Calculer le prix
         service_type = state.get('service_type', 'autre_plateforme')
         quantity = state.get('quantity', '?')
-        service_info = PRICING[service_type]
+        service_info = get_service_price(service_type)
         
         # Essayer de convertir la quantité en nombre
         try:
             qty_num = int(''.join(filter(str.isdigit, quantity)))
-            if service_info['price'] == 'Sur devis':
+            price_val = service_info.get('price', 0)
+            if price_val == 'Sur devis' or str(price_val).lower() == 'sur devis':
                 price_text = "**Sur devis** (notre équipe vous contactera)"
             else:
-                total = qty_num * service_info['price']
-                price_text = f"**≈ {total} {service_info['currency']}**"
-                state['estimated_price'] = f"{total} {service_info['currency']}"
+                # Convertir le prix en nombre si c'est une chaîne
+                price_num = float(price_val) if isinstance(price_val, str) and price_val.replace('.', '').replace('-', '').isdigit() else float(price_val)
+                total = qty_num * price_num
+                currency = service_info.get('currency', 'EUR')
+                price_text = f"**≈ {total} {currency}**"
+                state['estimated_price'] = f"{total} {currency}"
         except:
             price_text = "**À calculer** (quantité à préciser)"
             state['estimated_price'] = "À calculer"

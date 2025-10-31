@@ -10,7 +10,7 @@ import asyncio
 import os
 
 # Importer DB_PATH et fonctions de connexion depuis bot_simple
-from bot_simple import DB_PATH, USE_SUPABASE, _connect, _execute
+from bot_simple import DB_PATH, USE_SUPABASE, _connect, _execute, get_pricing, reload_pricing
 
 # Import conditionnel pour RealDictCursor (seulement si Supabase disponible)
 try:
@@ -69,9 +69,26 @@ def logout():
 @login_required
 def dashboard():
     """Dashboard principal - Vue d'ensemble avec onglets"""
-    view = request.args.get('view', 'overview')  # overview, conversations, orders
+    view = request.args.get('view', 'overview')  # overview, conversations, orders, pricing
     
-    # Connexion optimisée
+    # Si vue pricing, charger les prix directement
+    if view == 'pricing':
+        pricing_data = get_pricing()
+        stats = {
+            'total_orders': 0,
+            'total_clients': 0,
+            'total_messages': 0
+        }
+        return render_template_string(
+            DASHBOARD_TEMPLATE, 
+            conversations=[],
+            orders=[],
+            stats=stats,
+            view=view,
+            pricing=pricing_data
+        )
+    
+    # Connexion optimisée pour autres vues
     conn = _connect_db()
     # Détecter le type de DB depuis la connexion
     is_postgres = hasattr(conn, 'get_dsn_parameters')
@@ -130,7 +147,8 @@ def dashboard():
         conversations=conversations,
         orders=orders,
         stats=stats,
-        view=view
+        view=view,
+        pricing=None
     )
 
 @app.route('/conversation/<int:conv_id>')
@@ -563,6 +581,9 @@ DASHBOARD_TEMPLATE = '''
             <a href="/?view=conversations" class="tab {% if view == 'conversations' %}active{% endif %}">
                 💬 Conversations
             </a>
+            <a href="/?view=pricing" class="tab {% if view == 'pricing' %}active{% endif %}">
+                💰 Prix
+            </a>
         </div>
         
         <!-- Content based on view -->
@@ -705,6 +726,56 @@ DASHBOARD_TEMPLATE = '''
             {% else %}
                 <div class="empty">📭 Aucune conversation pour le moment</div>
             {% endif %}
+        
+        {% elif view == 'pricing' %}
+            <h2 class="section-title">💰 Gestion des Prix</h2>
+            <p style="margin-bottom: 20px; color: #666;">Modifiez les prix de vos services. Les modifications sont enregistrées immédiatement et persistent même après redéploiement.</p>
+            
+            <form method="POST" action="/pricing/update" style="background: white; padding: 20px; border-radius: 8px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #e0e0e0;">
+                            <th style="text-align: left; padding: 12px; font-weight: 600;">Service</th>
+                            <th style="text-align: left; padding: 12px; font-weight: 600;">Nom Affiché</th>
+                            <th style="text-align: left; padding: 12px; font-weight: 600;">Prix</th>
+                            <th style="text-align: left; padding: 12px; font-weight: 600;">Devise</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if pricing %}
+                            {% for service_key, service_info in pricing.items() %}
+                            <tr style="border-bottom: 1px solid #f0f0f0;">
+                                <td style="padding: 12px; font-weight: 500;">{{ service_key }}</td>
+                                <td style="padding: 12px;">
+                                    <input type="text" name="name_{{ service_key }}" value="{{ service_info.name }}" 
+                                           style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;" required>
+                                </td>
+                                <td style="padding: 12px;">
+                                    <input type="text" name="price_{{ service_key }}" value="{{ service_info.price }}" 
+                                           placeholder="18 ou Sur devis" 
+                                           style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;" required>
+                                </td>
+                                <td style="padding: 12px;">
+                                    <input type="text" name="currency_{{ service_key }}" value="{{ service_info.currency or 'EUR' }}" 
+                                           style="width: 80px; padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% endif %}
+                    </tbody>
+                </table>
+                
+                <div style="margin-top: 20px; text-align: right;">
+                    <button type="submit" style="background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: 600;">
+                        💾 Enregistrer les Modifications
+                    </button>
+                </div>
+            </form>
+            
+            <div style="margin-top: 20px; padding: 15px; background: #fffbea; border-left: 4px solid #ffd700; border-radius: 4px;">
+                <strong>💡 Note :</strong> Les prix sont stockés dans la base de données (Supabase ou SQLite). 
+                Ils persistent même après redéploiement et sont utilisés immédiatement par le bot.
+            </div>
         {% endif %}
     </div>
 </body>
