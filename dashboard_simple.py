@@ -213,18 +213,18 @@ def dashboard():
             ORDER BY created_at DESC
         ''')
         orders = cursor.fetchall()
-    
-    stats = {
-        'total_orders': total_orders,
-        'total_clients': total_clients,
-        'total_messages': total_messages
-    }
-    
-    return render_template_string(
-        DASHBOARD_TEMPLATE, 
-        conversations=conversations,
-        orders=orders,
-        stats=stats,
+        
+        stats = {
+            'total_orders': total_orders,
+            'total_clients': total_clients,
+            'total_messages': total_messages
+        }
+        
+        return render_template_string(
+            DASHBOARD_TEMPLATE, 
+            conversations=conversations,
+            orders=orders,
+            stats=stats,
             view=view,
             pricing=None,
             crypto_addresses=[]
