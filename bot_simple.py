@@ -173,28 +173,46 @@ def _connect():
             
             if supabase_url:
                 # Si l'URL contient "pooler" ou port 6543, utiliser connection pooling (plus fiable)
-                if 'pooler.supabase.com' in supabase_url or ':6543' in supabase_url:
+                is_pooling = 'pooler.supabase.com' in supabase_url or ':6543' in supabase_url
+                if is_pooling:
                     logger.info("🔗 Utilisation de Supabase Connection Pooling (plus fiable)")
-                
-                conn = psycopg2.connect(
-                    supabase_url,
-                    connect_timeout=connect_timeout,
-                    options='-c statement_timeout=10000'  # Timeout de requête : 10 secondes
-                )
+                    # Connection pooling : pas d'options de session (mode transaction)
+                    conn = psycopg2.connect(
+                        supabase_url,
+                        connect_timeout=connect_timeout
+                    )
+                else:
+                    # Connexion directe : peut utiliser options de session
+                    conn = psycopg2.connect(
+                        supabase_url,
+                        connect_timeout=connect_timeout,
+                        options='-c statement_timeout=10000'  # Timeout de requête : 10 secondes
+                    )
             elif db_host and db_name and db_user and db_password:
                 # Utiliser connection pooling si port 6543, sinon port standard 5432
-                if db_port == '6543' or 'pooler' in db_host:
+                is_pooling = db_port == '6543' or 'pooler' in db_host
+                if is_pooling:
                     logger.info("🔗 Utilisation de Supabase Connection Pooling (port 6543)")
-                
-                conn = psycopg2.connect(
-                    host=db_host,
-                    port=db_port,
-                    database=db_name,
-                    user=db_user,
-                    password=db_password,
-                    connect_timeout=connect_timeout,
-                    options='-c statement_timeout=10000'
-                )
+                    # Connection pooling : pas d'options de session (mode transaction)
+                    conn = psycopg2.connect(
+                        host=db_host,
+                        port=db_port,
+                        database=db_name,
+                        user=db_user,
+                        password=db_password,
+                        connect_timeout=connect_timeout
+                    )
+                else:
+                    # Connexion directe : peut utiliser options de session
+                    conn = psycopg2.connect(
+                        host=db_host,
+                        port=db_port,
+                        database=db_name,
+                        user=db_user,
+                        password=db_password,
+                        connect_timeout=connect_timeout,
+                        options='-c statement_timeout=10000'
+                    )
             else:
                 raise ValueError("Variables Supabase manquantes")
             
