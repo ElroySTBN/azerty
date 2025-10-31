@@ -12,6 +12,35 @@ import os
 # Importer DB_PATH et fonctions de connexion depuis bot_simple
 from bot_simple import DB_PATH, USE_SUPABASE, _connect, _execute, get_pricing, reload_pricing
 
+def get_crypto_addresses():
+    """Charge toutes les adresses crypto depuis la base de données"""
+    conn = _connect_db()
+    is_postgres = hasattr(conn, 'get_dsn_parameters')
+    if is_postgres and PSYCOPG2_AVAILABLE:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    else:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+    
+    _execute(cursor, 'SELECT * FROM crypto_addresses WHERE is_active = 1 ORDER BY name')
+    addresses = cursor.fetchall()
+    conn.close()
+    
+    # Convertir en liste de dictionnaires pour faciliter le template
+    result = []
+    for addr in addresses:
+        if is_postgres:
+            result.append(dict(addr))
+        else:
+            result.append({
+                'id': addr['id'],
+                'name': addr['name'],
+                'address': addr['address'],
+                'network': addr['network'],
+                'is_active': addr['is_active']
+            })
+    return result
+
 # Import conditionnel pour RealDictCursor (seulement si Supabase disponible)
 try:
     from psycopg2.extras import RealDictCursor
@@ -69,7 +98,7 @@ def logout():
 @login_required
 def dashboard():
     """Dashboard principal - Vue d'ensemble avec onglets"""
-    view = request.args.get('view', 'overview')  # overview, conversations, orders, pricing
+    view = request.args.get('view', 'overview')  # overview, conversations, orders, pricing, crypto
     
     # Si vue pricing, charger les prix directement
     if view == 'pricing':
@@ -85,7 +114,26 @@ def dashboard():
             orders=[],
             stats=stats,
             view=view,
-            pricing=pricing_data
+            pricing=pricing_data,
+            crypto_addresses=[]
+        )
+    
+    # Si vue crypto, charger les adresses directement
+    if view == 'crypto':
+        crypto_addresses = get_crypto_addresses()
+        stats = {
+            'total_orders': 0,
+            'total_clients': 0,
+            'total_messages': 0
+        }
+        return render_template_string(
+            DASHBOARD_TEMPLATE, 
+            conversations=[],
+            orders=[],
+            stats=stats,
+            view=view,
+            pricing=None,
+            crypto_addresses=crypto_addresses
         )
     
     # Connexion optimisée pour autres vues
@@ -148,7 +196,8 @@ def dashboard():
         orders=orders,
         stats=stats,
         view=view,
-        pricing=None
+        pricing=None,
+        crypto_addresses=[]
     )
 
 @app.route('/conversation/<int:conv_id>')
@@ -168,6 +217,7 @@ def conversation(conv_id):
     conv = cursor.fetchone()
     
     if not conv:
+        conn.close()
         return "Conversation introuvable", 404
     
     # Messages de la conversation
@@ -178,9 +228,13 @@ def conversation(conv_id):
     ''', (conv_id,))
     
     messages = cursor.fetchall()
+    
+    # Charger les adresses crypto pour la sélection
+    crypto_addresses = get_crypto_addresses()
+    
     conn.close()
     
-    return render_template_string(CONVERSATION_TEMPLATE, conv=conv, messages=messages)
+    return render_template_string(CONVERSATION_TEMPLATE, conv=conv, messages=messages, crypto_addresses=crypto_addresses)
 
 @app.route('/conversation/<int:conv_id>/reply', methods=['POST'])
 @login_required
@@ -283,6 +337,58 @@ def update_pricing():
     
     return redirect('/?view=pricing&success=1')
 
+@app.route('/crypto/add', methods=['POST'])
+@login_required
+def add_crypto_address():
+    """Ajoute une nouvelle adresse crypto"""
+    name = request.form.get('name')
+    address = request.form.get('address')
+    network = request.form.get('network')
+    
+    if not name or not address or not network:
+        return redirect('/?view=crypto&error=1')
+    
+    conn = _connect_db()
+    is_postgres = hasattr(conn, 'get_dsn_parameters')
+    if is_postgres and PSYCOPG2_AVAILABLE:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    else:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+    
+    _execute(cursor, '''
+        INSERT INTO crypto_addresses (name, address, network, is_active)
+        VALUES (?, ?, ?, ?)
+    ''', (name, address, network, True))
+    
+    conn.commit()
+    conn.close()
+    
+    return redirect('/?view=crypto&success=1')
+
+@app.route('/crypto/delete/<int:addr_id>', methods=['POST'])
+@login_required
+def delete_crypto_address(addr_id):
+    """Supprime une adresse crypto (soft delete en la désactivant)"""
+    conn = _connect_db()
+    is_postgres = hasattr(conn, 'get_dsn_parameters')
+    if is_postgres and PSYCOPG2_AVAILABLE:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    else:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+    
+    _execute(cursor, '''
+        UPDATE crypto_addresses 
+        SET is_active = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (False, addr_id))
+    
+    conn.commit()
+    conn.close()
+    
+    return redirect('/?view=crypto&success=1')
+
 @app.route('/conversation/<int:conv_id>/template', methods=['POST'])
 @login_required
 def send_template(conv_id):
@@ -354,8 +460,22 @@ N'hésitez pas si vous avez des questions !'''
     message = message.replace('[QUANTITE]', str(conv.get('quantity', '?')))
     message = message.replace('[PRIX]', conv.get('estimated_price', 'À calculer'))
     message = message.replace('[MONTANT]', conv.get('estimated_price', 'À calculer'))
-    message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')  # À configurer
-    message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
+    
+    # Récupérer l'adresse crypto si sélectionnée
+    if crypto_address_id and template_id == 'payment_crypto':
+        _execute(cursor, 'SELECT * FROM crypto_addresses WHERE id = ? AND is_active = 1', (crypto_address_id,))
+        crypto_addr = cursor.fetchone()
+        if crypto_addr:
+            crypto_address = crypto_addr['address'] if (is_postgres and isinstance(crypto_addr, dict)) else crypto_addr[2]
+            crypto_network = crypto_addr['network'] if (is_postgres and isinstance(crypto_addr, dict)) else crypto_addr[3]
+            message = message.replace('[VOTRE_ADRESSE_CRYPTO]', crypto_address)
+            message = message.replace('[RESEAU]', crypto_network)
+        else:
+            message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
+            message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
+    else:
+        message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
+        message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
     
     # Sauvegarder le message en DB
     _execute(cursor, '''
@@ -632,6 +752,9 @@ DASHBOARD_TEMPLATE = '''
             </a>
             <a href="/?view=pricing" class="tab {% if view == 'pricing' %}active{% endif %}">
                 💰 Prix
+            </a>
+            <a href="/?view=crypto" class="tab {% if view == 'crypto' %}active{% endif %}">
+                ₿ Adresses Crypto
             </a>
         </div>
         

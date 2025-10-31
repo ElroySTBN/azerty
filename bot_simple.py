@@ -408,6 +408,19 @@ def init_simple_db():
             )
         ''')
         
+        # Table des adresses crypto (configurable depuis dashboard)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS crypto_addresses (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                address TEXT NOT NULL,
+                network TEXT NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
         # Insérer les prix par défaut si la table est vide
         cursor.execute('SELECT COUNT(*) FROM pricing')
         if cursor.fetchone()[0] == 0:
@@ -479,6 +492,19 @@ def init_simple_db():
                 price TEXT NOT NULL,
                 currency TEXT DEFAULT 'EUR',
                 name TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Table des adresses crypto (configurable depuis dashboard)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS crypto_addresses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                address TEXT NOT NULL,
+                network TEXT NOT NULL,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
