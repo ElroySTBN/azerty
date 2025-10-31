@@ -15,15 +15,18 @@ logger = logging.getLogger(__name__)
 
 # Support Supabase (PostgreSQL) - APRÈS la création du logger
 USE_SUPABASE = False
+SUPABASE_FAILED = False  # Flag pour éviter de réessayer si Supabase a déjà échoué
+
 if os.getenv('SUPABASE_URL') or os.getenv('SUPABASE_DB_HOST'):
     try:
         import psycopg2
         from psycopg2.extras import RealDictCursor
         USE_SUPABASE = True
-        logger.info("✅ Supabase (PostgreSQL) détecté")
+        logger.info("✅ Supabase (PostgreSQL) détecté - tentative de connexion...")
     except ImportError:
         logger.warning("⚠️ psycopg2-binary non installé, utilisation de SQLite")
         USE_SUPABASE = False
+        SUPABASE_FAILED = True
 
 # Grille tarifaire
 PRICING = {
@@ -147,16 +150,13 @@ def _resolve_db_path() -> str:
 
 DB_PATH = _resolve_db_path()
 
-# Log du chemin DB utilisé au démarrage
-if USE_SUPABASE:
-    logger.info("📁 Base de données : Supabase (PostgreSQL)")
-else:
-    logger.info(f"📁 Base de données : {DB_PATH} (abs: {os.path.abspath(DB_PATH)})")
+# Log du chemin DB utilisé au démarrage (sera mis à jour après tentative de connexion)
 
 def _connect():
     """Connexion à la base de données (Supabase PostgreSQL ou SQLite)"""
-    # Essayer Supabase si configuré
-    if USE_SUPABASE:
+    global USE_SUPABASE, SUPABASE_FAILED
+    # Essayer Supabase si configuré et pas déjà échoué
+    if USE_SUPABASE and not SUPABASE_FAILED:
         try:
             supabase_url = os.getenv('SUPABASE_URL')
             # Format: postgresql://user:password@host:port/database
@@ -185,6 +185,9 @@ def _connect():
         except Exception as e:
             logger.error(f"❌ Erreur connexion Supabase: {e}")
             logger.warning("⚠️ Fallback vers SQLite - connexion Supabase échouée")
+            # Désactiver Supabase pour éviter de réessayer à chaque requête
+            SUPABASE_FAILED = True
+            USE_SUPABASE = False
             # Continuer avec SQLite ci-dessous
     
     # Connexion SQLite (fallback ou si Supabase non configuré)
@@ -214,6 +217,13 @@ def init_simple_db():
     """Initialise une base de données ultra-simple (Supabase PostgreSQL ou SQLite)"""
     conn = _connect()
     cursor = conn.cursor()
+    
+    # Log du type de DB après connexion réelle
+    is_postgres = hasattr(conn, 'get_dsn_parameters')
+    if is_postgres:
+        logger.info("📁 Base de données : Supabase (PostgreSQL)")
+    else:
+        logger.info(f"📁 Base de données : {DB_PATH} (abs: {os.path.abspath(DB_PATH)})")
     
     if USE_SUPABASE:
         # Schéma PostgreSQL (Supabase)
