@@ -167,9 +167,22 @@ def dashboard():
         FROM conversations
     ''')
     stats_row = cursor.fetchone()
-    total_orders = stats_row['total_orders'] or 0
-    total_clients = stats_row['total_clients'] or 0
-    total_messages = stats_row['total_messages'] or 0
+    
+    # Gérer les différents formats de résultats (PostgreSQL dict vs SQLite Row/tuple)
+    if is_postgres and isinstance(stats_row, dict):
+        total_orders = stats_row.get('total_orders', 0) or 0
+        total_clients = stats_row.get('total_clients', 0) or 0
+        total_messages = stats_row.get('total_messages', 0) or 0
+    elif hasattr(stats_row, '__getitem__') and hasattr(stats_row, 'keys'):
+        # SQLite Row object
+        total_orders = stats_row['total_orders'] or 0
+        total_clients = stats_row['total_clients'] or 0
+        total_messages = stats_row['total_messages'] or 0
+    else:
+        # Tuple fallback (par index)
+        total_orders = (stats_row[0] if stats_row else 0) or 0
+        total_clients = (stats_row[1] if stats_row and len(stats_row) > 1 else 0) or 0
+        total_messages = (stats_row[2] if stats_row and len(stats_row) > 2 else 0) or 0
     
     # Requête optimisée pour conversations avec LEFT JOIN au lieu de sous-requêtes
     _execute(cursor, '''
