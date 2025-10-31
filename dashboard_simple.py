@@ -43,15 +43,31 @@ def get_crypto_addresses():
         # Convertir en liste de dictionnaires pour faciliter le template
         result = []
         for addr in addresses:
-            if is_postgres:
-                result.append(dict(addr))
-            else:
+            if is_postgres and isinstance(addr, dict):
+                result.append({
+                    'id': addr.get('id'),
+                    'name': addr.get('name'),
+                    'address': addr.get('address'),
+                    'network': addr.get('network'),
+                    'is_active': addr.get('is_active')
+                })
+            elif hasattr(addr, '__getitem__') and hasattr(addr, 'keys'):
+                # SQLite Row object
                 result.append({
                     'id': addr['id'],
                     'name': addr['name'],
                     'address': addr['address'],
                     'network': addr['network'],
                     'is_active': addr['is_active']
+                })
+            else:
+                # Tuple fallback (id, name, address, network, is_active)
+                result.append({
+                    'id': addr[0] if len(addr) > 0 else None,
+                    'name': addr[1] if len(addr) > 1 else '',
+                    'address': addr[2] if len(addr) > 2 else '',
+                    'network': addr[3] if len(addr) > 3 else '',
+                    'is_active': addr[4] if len(addr) > 4 else True
                 })
         return result
     except Exception as e:
