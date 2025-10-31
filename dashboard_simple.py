@@ -160,8 +160,8 @@ def conversation(conv_id):
     if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
     
     # Infos de la conversation
     _execute(cursor, 'SELECT * FROM conversations WHERE id = ?', (conv_id,))
@@ -197,7 +197,7 @@ def reply(conv_id):
     if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
-    cursor = conn.cursor()
+        cursor = conn.cursor()
     _execute(cursor, 'SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
     result = cursor.fetchone()
     
@@ -233,6 +233,55 @@ def reply(conv_id):
         asyncio.run_coroutine_threadsafe(send_message(), bot_loop)
     
     return redirect(f'/conversation/{conv_id}')
+
+@app.route('/pricing/update', methods=['POST'])
+@login_required
+def update_pricing():
+    """Met à jour les prix depuis le dashboard"""
+    conn = _connect_db()
+    is_postgres = hasattr(conn, 'get_dsn_parameters')
+    if is_postgres and PSYCOPG2_AVAILABLE:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+    else:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+    
+    # Services disponibles
+    services = ['google', 'trustpilot', 'forum', 'pagesjaunes', 'autre_plateforme', 'suppression']
+    
+    updated_count = 0
+    for service_key in services:
+        name = request.form.get(f'name_{service_key}')
+        price = request.form.get(f'price_{service_key}')
+        currency = request.form.get(f'currency_{service_key}', 'EUR')
+        
+        if name and price:
+            # Vérifier si le service existe déjà
+            _execute(cursor, 'SELECT id FROM pricing WHERE service_key = ?', (service_key,))
+            exists = cursor.fetchone()
+            
+            if exists:
+                # Mettre à jour
+                _execute(cursor, '''
+                    UPDATE pricing 
+                    SET price = ?, currency = ?, name = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE service_key = ?
+                ''', (price, currency, name, service_key))
+            else:
+                # Insérer
+                _execute(cursor, '''
+                    INSERT INTO pricing (service_key, price, currency, name)
+                    VALUES (?, ?, ?, ?)
+                ''', (service_key, price, currency, name))
+            updated_count += 1
+    
+    conn.commit()
+    conn.close()
+    
+    # Recharger les prix dans le bot
+    reload_pricing()
+    
+    return redirect('/?view=pricing&success=1')
 
 @app.route('/conversation/<int:conv_id>/template', methods=['POST'])
 @login_required
