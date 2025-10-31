@@ -216,10 +216,21 @@ def _connect():
             else:
                 raise ValueError("Variables Supabase manquantes")
             
-            # Tester la connexion avec une requête simple
-            cursor = conn.cursor()
-            cursor.execute('SELECT 1')
-            cursor.close()
+            # Pour connection pooling (transaction mode), ne pas tester avec SELECT
+            # car cela peut causer "set_session cannot be used inside a transaction"
+            # La connexion elle-même est suffisante pour valider
+            
+            # Détecter si c'est du pooling
+            is_pooling_connection = (
+                (supabase_url and ('pooler.supabase.com' in supabase_url or ':6543' in supabase_url)) or
+                (db_host and ('pooler' in db_host or db_port == '6543'))
+            )
+            
+            if not is_pooling_connection:
+                # Seulement tester pour connexions directes (pas pooling)
+                cursor = conn.cursor()
+                cursor.execute('SELECT 1')
+                cursor.close()
             
             conn.autocommit = False
             logger.info("✅ Connexion Supabase réussie")
