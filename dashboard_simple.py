@@ -11,8 +11,14 @@ import os
 
 # Importer DB_PATH et fonctions de connexion depuis bot_simple
 from bot_simple import DB_PATH, USE_SUPABASE, _connect, _execute
-if USE_SUPABASE:
+
+# Import conditionnel pour RealDictCursor (seulement si Supabase disponible)
+try:
     from psycopg2.extras import RealDictCursor
+    PSYCOPG2_AVAILABLE = True
+except ImportError:
+    PSYCOPG2_AVAILABLE = False
+    RealDictCursor = None
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'lebonmot-secret-key-2024')
@@ -67,7 +73,9 @@ def dashboard():
     
     # Connexion optimisée
     conn = _connect_db()
-    if USE_SUPABASE:
+    # Détecter le type de DB depuis la connexion
+    is_postgres = hasattr(conn, 'get_dsn_parameters')
+    if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
         conn.row_factory = sqlite3.Row
@@ -130,7 +138,8 @@ def dashboard():
 def conversation(conv_id):
     """Affiche une conversation spécifique"""
     conn = _connect_db()
-    if USE_SUPABASE:
+    is_postgres = hasattr(conn, 'get_dsn_parameters')
+    if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
         conn.row_factory = sqlite3.Row
@@ -166,7 +175,8 @@ def reply(conv_id):
     
     # Récupérer le telegram_id
     conn = _connect_db()
-    if USE_SUPABASE:
+    is_postgres = hasattr(conn, 'get_dsn_parameters')
+    if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
         cursor = conn.cursor()
@@ -177,7 +187,8 @@ def reply(conv_id):
         conn.close()
         return jsonify({'error': 'Conversation introuvable'}), 404
     
-    telegram_id = result['telegram_id'] if USE_SUPABASE else result[0]
+    is_postgres = hasattr(conn, 'get_dsn_parameters')
+    telegram_id = result['telegram_id'] if (is_postgres and isinstance(result, dict)) else result[0]
     
     # Sauvegarder le message en DB
     _execute(cursor, '''
@@ -256,7 +267,8 @@ N'hésitez pas si vous avez des questions !'''
     
     # Récupérer le telegram_id et infos commande pour remplacer les variables
     conn = _connect_db()
-    if USE_SUPABASE:
+    is_postgres = hasattr(conn, 'get_dsn_parameters')
+    if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
         conn.row_factory = sqlite3.Row
