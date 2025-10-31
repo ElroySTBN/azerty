@@ -221,13 +221,37 @@ def _connect():
             # Continuer avec SQLite ci-dessous
     
     # Connexion SQLite (fallback ou si Supabase non configuré)
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    # Optimisations sûres qui ne compromettent pas la persistance
-    conn.execute('PRAGMA synchronous=NORMAL')  # Bon compromis vitesse/sécurité
-    conn.execute('PRAGMA cache_size=-5000')  # 5MB de cache (raisonnable)
-    conn.execute('PRAGMA temp_store=MEMORY')  # Tables temporaires en RAM
-    conn.execute('PRAGMA foreign_keys=ON')  # Activer les clés étrangères
-    return conn
+    # Système robuste avec retry et création automatique du répertoire
+    try:
+        # Créer le répertoire si nécessaire
+        db_dir = os.path.dirname(DB_PATH)
+        if db_dir and db_dir != '.':
+            os.makedirs(db_dir, exist_ok=True)
+        
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=10.0)
+        # Optimisations sûres qui ne compromettent pas la persistance
+        conn.execute('PRAGMA synchronous=NORMAL')  # Bon compromis vitesse/sécurité
+        conn.execute('PRAGMA cache_size=-5000')  # 5MB de cache (raisonnable)
+        conn.execute('PRAGMA temp_store=MEMORY')  # Tables temporaires en RAM
+        conn.execute('PRAGMA foreign_keys=ON')  # Activer les clés étrangères
+        conn.execute('PRAGMA journal_mode=DELETE')  # Mode journal sûr (pas WAL qui peut poser problème)
+        
+        # Tester la connexion
+        conn.execute('SELECT 1')
+        
+        logger.debug(f"✅ Connexion SQLite : {DB_PATH}")
+        return conn
+    except sqlite3.Error as e:
+        logger.error(f"❌ Erreur SQLite : {e}")
+        # Dernier recours : créer dans le répertoire courant
+        fallback_path = "lebonmot_simple.db"
+        logger.warning(f"⚠️ Fallback SQLite vers : {fallback_path}")
+        conn = sqlite3.connect(fallback_path, check_same_thread=False, timeout=10.0)
+        conn.execute('PRAGMA synchronous=NORMAL')
+        conn.execute('PRAGMA cache_size=-5000')
+        conn.execute('PRAGMA temp_store=MEMORY')
+        conn.execute('PRAGMA foreign_keys=ON')
+        return conn
 
 def _execute(cursor, query, params=None):
     """Exécute une requête en adaptant les placeholders selon le type de DB"""
