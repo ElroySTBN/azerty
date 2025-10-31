@@ -382,6 +382,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user = update.effective_user
     telegram_id = user.id
+    
+    # Initialiser la conversation si elle n'existe pas
+    if telegram_id not in user_conversations:
+        user_conversations[telegram_id] = {
+            'step': 'menu',
+            'username': user.username,
+            'first_name': user.first_name
+        }
+    
     data = query.data
     
     if data == "new_quote":
