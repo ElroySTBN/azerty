@@ -296,22 +296,22 @@ def reply(conv_id):
         if is_postgres and PSYCOPG2_AVAILABLE:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
         else:
-    cursor = conn.cursor()
+            cursor = conn.cursor()
         
         _execute(cursor, 'SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
-    result = cursor.fetchone()
-    
-    if not result:
-        return jsonify({'error': 'Conversation introuvable'}), 404
-    
+        result = cursor.fetchone()
+        
+        if not result:
+            return jsonify({'error': 'Conversation introuvable'}), 404
+        
         telegram_id = result['telegram_id'] if (is_postgres and isinstance(result, dict)) else result[0]
-    
-    # Sauvegarder le message en DB
+        
+        # Sauvegarder le message en DB
         _execute(cursor, '''
-        INSERT INTO messages (conversation_id, telegram_id, message, sender)
-        VALUES (?, ?, ?, ?)
-    ''', (conv_id, telegram_id, message, 'admin'))
-    conn.commit()
+            INSERT INTO messages (conversation_id, telegram_id, message, sender)
+            VALUES (?, ?, ?, ?)
+        ''', (conv_id, telegram_id, message, 'admin'))
+        conn.commit()
     finally:
         # TOUJOURS fermer la connexion
         if conn:
