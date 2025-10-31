@@ -150,9 +150,7 @@ def dashboard():
             stats=stats,
             view=view,
             pricing=None,
-            crypto_addresses=crypto_addresses,
-            bot_messages=None,
-            bot_buttons=None
+            crypto_addresses=crypto_addresses
         )
     
     # Connexion optimisée pour autres vues
