@@ -198,18 +198,17 @@ def _connect():
 
 def _execute(cursor, query, params=None):
     """Exécute une requête en adaptant les placeholders selon le type de DB"""
-    if USE_SUPABASE:
+    # Détecter le type de DB depuis le cursor
+    is_postgres = hasattr(cursor, 'connection') and hasattr(cursor.connection, 'get_dsn_parameters')
+    
+    if is_postgres:
         # PostgreSQL utilise %s au lieu de ?
-        if params:
-            return cursor.execute(query.replace('?', '%s'), params)
-        else:
-            return cursor.execute(query.replace('?', '%s'))
+        query = query.replace('?', '%s')
+    
+    if params:
+        return cursor.execute(query, params)
     else:
-        # SQLite utilise ?
-        if params:
-            return cursor.execute(query, params)
-        else:
-            return cursor.execute(query)
+        return cursor.execute(query)
 
 def init_simple_db():
     """Initialise une base de données ultra-simple (Supabase PostgreSQL ou SQLite)"""
