@@ -14,11 +14,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Support Supabase (PostgreSQL) - APRÈS la création du logger
-USE_SUPABASE = bool(os.getenv('SUPABASE_URL'))
-if USE_SUPABASE:
+USE_SUPABASE = False
+if os.getenv('SUPABASE_URL') or os.getenv('SUPABASE_DB_HOST'):
     try:
         import psycopg2
         from psycopg2.extras import RealDictCursor
+        USE_SUPABASE = True
         logger.info("✅ Supabase (PostgreSQL) détecté")
     except ImportError:
         logger.warning("⚠️ psycopg2-binary non installé, utilisation de SQLite")
@@ -183,7 +184,11 @@ def _connect():
             return conn
         except Exception as e:
             logger.error(f"❌ Erreur connexion Supabase: {e}")
-            raise
+            logger.warning("⚠️ Fallback vers SQLite")
+            # Fallback automatique vers SQLite si Supabase échoue
+            global USE_SUPABASE
+            USE_SUPABASE = False
+            # Continuer avec SQLite
     else:
         # Connexion SQLite optimisée (sans WAL pour éviter problèmes de persistance)
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
