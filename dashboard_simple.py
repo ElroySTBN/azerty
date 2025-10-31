@@ -10,7 +10,7 @@ import asyncio
 import os
 
 # Importer DB_PATH et fonctions de connexion depuis bot_simple
-from bot_simple import DB_PATH, USE_SUPABASE, _connect, _execute, get_pricing, reload_pricing, get_bot_message, get_bot_buttons, reload_bot_config
+from bot_simple import DB_PATH, USE_SUPABASE, _connect, _execute, get_pricing, reload_pricing
 
 # Import conditionnel pour RealDictCursor (seulement si Supabase disponible)
 try:
@@ -132,9 +132,7 @@ def dashboard():
             stats=stats,
             view=view,
             pricing=pricing_data,
-            crypto_addresses=[],
-            bot_messages=None,
-            bot_buttons=None
+            crypto_addresses=[]
         )
     
     # Si vue crypto, charger les adresses directement
@@ -156,69 +154,6 @@ def dashboard():
             bot_messages=None,
             bot_buttons=None
         )
-    
-    # Si vue bot_config, charger les messages et boutons
-    if view == 'bot_config':
-        conn = None
-        try:
-            conn = _connect_db()
-            is_postgres = hasattr(conn, 'get_dsn_parameters')
-            if is_postgres and PSYCOPG2_AVAILABLE:
-                cursor = conn.cursor(cursor_factory=RealDictCursor)
-            else:
-                conn.row_factory = sqlite3.Row
-                cursor = conn.cursor()
-            
-            # Charger tous les messages
-            _execute(cursor, 'SELECT message_key, message_text FROM bot_messages ORDER BY message_key')
-            messages = cursor.fetchall()
-            bot_messages = {}
-            for msg in messages:
-                key = msg['message_key'] if (is_postgres and isinstance(msg, dict)) else msg[0]
-                text = msg['message_text'] if (is_postgres and isinstance(msg, dict)) else msg[1]
-                bot_messages[key] = text
-            
-            # Charger tous les boutons groupés par button_key
-            _execute(cursor, 'SELECT button_key, button_text, callback_data, row_position FROM bot_buttons ORDER BY button_key, row_position, id')
-            buttons_data = cursor.fetchall()
-            bot_buttons = {}
-            for btn in buttons_data:
-                key = btn['button_key'] if (is_postgres and isinstance(btn, dict)) else btn[0]
-                text = btn['button_text'] if (is_postgres and isinstance(btn, dict)) else btn[1]
-                callback = btn['callback_data'] if (is_postgres and isinstance(btn, dict)) else btn[2]
-                row_pos = btn['row_position'] if (is_postgres and isinstance(btn, dict)) else btn[3]
-                
-                if key not in bot_buttons:
-                    bot_buttons[key] = []
-                bot_buttons[key].append({
-                    'text': text,
-                    'callback': callback,
-                    'row_position': row_pos
-                })
-            
-            stats = {
-                'total_orders': 0,
-                'total_clients': 0,
-                'total_messages': 0
-            }
-            
-            return render_template_string(
-                DASHBOARD_TEMPLATE, 
-                conversations=[],
-                orders=[],
-                stats=stats,
-                view=view,
-                pricing=None,
-                crypto_addresses=[],
-                bot_messages=bot_messages,
-                bot_buttons=bot_buttons
-            )
-        finally:
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
     
     # Connexion optimisée pour autres vues
     conn = None
@@ -264,39 +199,37 @@ def dashboard():
                 c.*,
                 COUNT(m.id) as message_count,
                 MAX(m.created_at) as last_message_time,
-                (SELECT message FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message
-            FROM conversations c
+               (SELECT message FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message
+        FROM conversations c
             LEFT JOIN messages m ON m.conversation_id = c.id
             GROUP BY c.id
-            ORDER BY c.created_at DESC
-        ''')
-        conversations = cursor.fetchall()
-        
+        ORDER BY c.created_at DESC
+    ''')
+    conversations = cursor.fetchall()
+    
         # Requête simple pour les commandes
         _execute(cursor, '''
             SELECT *
             FROM conversations
             WHERE service_type IS NOT NULL
             ORDER BY created_at DESC
-        ''')
-        orders = cursor.fetchall()
-        
-        stats = {
-            'total_orders': total_orders,
-            'total_clients': total_clients,
-            'total_messages': total_messages
-        }
-        
-        return render_template_string(
-            DASHBOARD_TEMPLATE, 
-            conversations=conversations,
-            orders=orders,
-            stats=stats,
+    ''')
+    orders = cursor.fetchall()
+    
+    stats = {
+        'total_orders': total_orders,
+        'total_clients': total_clients,
+        'total_messages': total_messages
+    }
+    
+    return render_template_string(
+        DASHBOARD_TEMPLATE, 
+        conversations=conversations,
+        orders=orders,
+        stats=stats,
             view=view,
             pricing=None,
-            crypto_addresses=[],
-            bot_messages=None,
-            bot_buttons=None
+            crypto_addresses=[]
         )
     finally:
         # TOUJOURS fermer la connexion
@@ -317,24 +250,24 @@ def conversation(conv_id):
         if is_postgres and PSYCOPG2_AVAILABLE:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
         else:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-        
-        # Infos de la conversation
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # Infos de la conversation
         _execute(cursor, 'SELECT * FROM conversations WHERE id = ?', (conv_id,))
-        conv = cursor.fetchone()
-        
-        if not conv:
-            return "Conversation introuvable", 404
-        
-        # Messages de la conversation
+    conv = cursor.fetchone()
+    
+    if not conv:
+        return "Conversation introuvable", 404
+    
+    # Messages de la conversation
         _execute(cursor, '''
-            SELECT * FROM messages 
-            WHERE conversation_id = ? 
-            ORDER BY created_at ASC
-        ''', (conv_id,))
-        
-        messages = cursor.fetchall()
+        SELECT * FROM messages 
+        WHERE conversation_id = ? 
+        ORDER BY created_at ASC
+    ''', (conv_id,))
+    
+    messages = cursor.fetchall()
         
         # Charger les adresses crypto pour la sélection
         crypto_addresses = get_crypto_addresses()
@@ -365,27 +298,27 @@ def reply(conv_id):
         if is_postgres and PSYCOPG2_AVAILABLE:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
         else:
-            cursor = conn.cursor()
+    cursor = conn.cursor()
         
         _execute(cursor, 'SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
-        result = cursor.fetchone()
-        
-        if not result:
-            return jsonify({'error': 'Conversation introuvable'}), 404
-        
+    result = cursor.fetchone()
+    
+    if not result:
+        return jsonify({'error': 'Conversation introuvable'}), 404
+    
         telegram_id = result['telegram_id'] if (is_postgres and isinstance(result, dict)) else result[0]
-        
-        # Sauvegarder le message en DB
+    
+    # Sauvegarder le message en DB
         _execute(cursor, '''
-            INSERT INTO messages (conversation_id, telegram_id, message, sender)
-            VALUES (?, ?, ?, ?)
-        ''', (conv_id, telegram_id, message, 'admin'))
-        conn.commit()
+        INSERT INTO messages (conversation_id, telegram_id, message, sender)
+        VALUES (?, ?, ?, ?)
+    ''', (conv_id, telegram_id, message, 'admin'))
+    conn.commit()
     finally:
         # TOUJOURS fermer la connexion
         if conn:
             try:
-                conn.close()
+    conn.close()
             except:
                 pass
     
@@ -526,98 +459,6 @@ def delete_crypto_address(addr_id):
         return redirect('/?view=crypto&success=1')
     finally:
         # TOUJOURS fermer la connexion
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
-
-@app.route('/bot_config/messages/update', methods=['POST'])
-@login_required
-def update_bot_messages():
-    """Met à jour les messages du bot"""
-    conn = None
-    try:
-        conn = _connect_db()
-        is_postgres = hasattr(conn, 'get_dsn_parameters')
-        if is_postgres and PSYCOPG2_AVAILABLE:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-        else:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-        
-        # Mettre à jour le message de bienvenue
-        welcome_text = request.form.get('message_welcome', '')
-        if welcome_text:
-            # Vérifier si le message existe déjà
-            _execute(cursor, 'SELECT id FROM bot_messages WHERE message_key = ?', ('welcome',))
-            exists = cursor.fetchone()
-            
-            if exists:
-                # Mettre à jour
-                _execute(cursor, '''
-                    UPDATE bot_messages 
-                    SET message_text = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE message_key = ?
-                ''', (welcome_text, 'welcome'))
-            else:
-                # Insérer
-                _execute(cursor, '''
-                    INSERT INTO bot_messages (message_key, message_text, updated_at)
-                    VALUES (?, ?, CURRENT_TIMESTAMP)
-                ''', ('welcome', welcome_text))
-        
-        conn.commit()
-        
-        # Recharger le cache du bot
-        reload_bot_config()
-        
-        return redirect('/?view=bot_config&success=1')
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
-
-@app.route('/bot_config/buttons/update', methods=['POST'])
-@login_required
-def update_bot_buttons():
-    """Met à jour les boutons du bot"""
-    conn = None
-    try:
-        conn = _connect_db()
-        is_postgres = hasattr(conn, 'get_dsn_parameters')
-        if is_postgres and PSYCOPG2_AVAILABLE:
-            cursor = conn.cursor(cursor_factory=RealDictCursor)
-        else:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-        
-        # Supprimer les anciens boutons pour 'start'
-        _execute(cursor, "DELETE FROM bot_buttons WHERE button_key = 'start'")
-        
-        # Insérer les nouveaux boutons
-        button_texts = request.form.getlist('button_text_start[]')
-        button_callbacks = request.form.getlist('button_callback_start[]')
-        button_rows = request.form.getlist('button_row_start[]')
-        
-        for i, text in enumerate(button_texts):
-            if text and i < len(button_callbacks) and i < len(button_rows):
-                callback = button_callbacks[i]
-                row_pos = int(button_rows[i]) if button_rows[i] else 0
-                _execute(cursor, '''
-                    INSERT INTO bot_buttons (button_key, button_text, callback_data, row_position, updated_at)
-                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ''', ('start', text, callback, row_pos))
-        
-        conn.commit()
-        
-        # Recharger le cache du bot
-        reload_bot_config()
-        
-        return redirect('/?view=bot_config&success=1')
-    finally:
         if conn:
             try:
                 conn.close()
@@ -1025,9 +866,6 @@ DASHBOARD_TEMPLATE = '''
             <a href="/?view=crypto" class="tab {% if view == 'crypto' %}active{% endif %}">
                 ₿ Adresses Crypto
             </a>
-            <a href="/?view=bot_config" class="tab {% if view == 'bot_config' %}active{% endif %}">
-                🤖 Configuration Bot
-            </a>
         </div>
         
         <!-- Content based on view -->
@@ -1226,99 +1064,6 @@ DASHBOARD_TEMPLATE = '''
                 Ils persistent même après redéploiement et sont utilisés immédiatement par le bot.
             </div>
         
-        {% elif view == 'bot_config' %}
-            <h2 class="section-title">🤖 Configuration du Bot</h2>
-            {% if request.args.get('success') %}
-            <div style="margin-bottom: 20px; padding: 15px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 4px; color: #155724;">
-                ✅ <strong>Configuration enregistrée avec succès !</strong> Les modifications sont actives immédiatement.
-            </div>
-            {% endif %}
-            <p style="margin-bottom: 20px; color: #666;">Modifiez les messages et boutons du bot. Les modifications sont enregistrées immédiatement et persistent même après redéploiement. <strong>Le bot n'a pas besoin de redémarrer !</strong></p>
-            
-            <!-- Messages du bot -->
-            <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
-                <h3 style="margin-bottom: 15px; color: #333; font-size: 18px;">💬 Messages du Bot</h3>
-                <form method="POST" action="/bot_config/messages/update">
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #666;">Message de bienvenue (/start) :</label>
-                        <textarea name="message_welcome" rows="8" 
-                                  style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 13px;"
-                                  placeholder="Le message affiché lors de /start...">{{ bot_messages.get('welcome', '') if bot_messages else '' }}</textarea>
-                        <small style="color: #999; display: block; margin-top: 5px;">Utilisez Markdown : **gras**, _italique_, etc.</small>
-                    </div>
-                    <button type="submit" style="background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: 600;">
-                        💾 Enregistrer les Messages
-                    </button>
-                </form>
-            </div>
-            
-            <!-- Boutons du bot -->
-            <div style="background: white; padding: 20px; border-radius: 8px;">
-                <h3 style="margin-bottom: 15px; color: #333; font-size: 18px;">🔘 Boutons du Bot</h3>
-                <form method="POST" action="/bot_config/buttons/update" id="buttonsForm">
-                    <div style="margin-bottom: 20px;">
-                        <h4 style="margin-bottom: 10px; color: #667eea;">Écran de bienvenue (/start) :</h4>
-                        <div id="startButtons">
-                            {% if bot_buttons and bot_buttons.get('start') %}
-                                {% for btn in bot_buttons['start'] %}
-                                <div style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center;">
-                                    <input type="text" name="button_text_start[]" value="{{ btn.text }}" 
-                                           placeholder="Texte du bouton" 
-                                           style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
-                                    <input type="text" name="button_callback_start[]" value="{{ btn.callback }}" 
-                                           placeholder="callback_data" 
-                                           style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 12px;" required>
-                                    <input type="number" name="button_row_start[]" value="{{ btn.row_position }}" min="0" 
-                                           placeholder="Rangée" 
-                                           style="width: 80px; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
-                                    <button type="button" onclick="removeButton(this)" style="padding: 10px 15px; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer;">✕</button>
-                                </div>
-                                {% endfor %}
-                            {% else %}
-                                <div style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center;">
-                                    <input type="text" name="button_text_start[]" value="📝 Passer une commande" 
-                                           placeholder="Texte du bouton" 
-                                           style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
-                                    <input type="text" name="button_callback_start[]" value="new_quote" 
-                                           placeholder="callback_data" 
-                                           style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 12px;" required>
-                                    <input type="number" name="button_row_start[]" value="0" min="0" 
-                                           placeholder="Rangée" 
-                                           style="width: 80px; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
-                                    <button type="button" onclick="removeButton(this)" style="padding: 10px 15px; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer;">✕</button>
-                                </div>
-                            {% endif %}
-                        </div>
-                        <button type="button" onclick="addButton('start')" style="margin-top: 10px; padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
-                            + Ajouter un bouton
-                        </button>
-                    </div>
-                    <button type="submit" style="background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: 600;">
-                        💾 Enregistrer les Boutons
-                    </button>
-                </form>
-            </div>
-            
-            <script>
-                function addButton(key) {
-                    const container = document.getElementById(key + 'Buttons');
-                    const div = document.createElement('div');
-                    div.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: center;';
-                    div.innerHTML = `
-                        <input type="text" name="button_text_${key}[]" placeholder="Texte du bouton" 
-                               style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
-                        <input type="text" name="button_callback_${key}[]" placeholder="callback_data" 
-                               style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 12px;" required>
-                        <input type="number" name="button_row_${key}[]" value="0" min="0" placeholder="Rangée" 
-                               style="width: 80px; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
-                        <button type="button" onclick="removeButton(this)" style="padding: 10px 15px; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer;">✕</button>
-                    `;
-                    container.appendChild(div);
-                }
-                function removeButton(btn) {
-                    btn.parentElement.remove();
-                }
-            </script>
         {% endif %}
     </div>
 </body>

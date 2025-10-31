@@ -726,8 +726,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Réinitialiser l'état de conversation
         user_conversations[telegram_id] = {'step': 'menu'}
         
-        # Charger le message depuis la DB (avec fallback par défaut)
-        welcome_text = get_bot_message('welcome', """🔐 **Reputalys**
+        welcome_text = f"""🔐 **Reputalys**
 _Service Anonyme de E-réputation_
 
 ━━━━━━━━━━━━━━━━━━
@@ -741,21 +740,14 @@ _Service Anonyme de E-réputation_
 ✅ Délai moyen : 48-72h
 ━━━━━━━━━━━━━━━━━━
 
-Que souhaitez-vous faire aujourd'hui ?""")
+Que souhaitez-vous faire aujourd'hui ?"""
 
-        # Charger les boutons depuis la DB (avec fallback par défaut)
-        button_rows = get_bot_buttons('start')
-        if not button_rows:
-            # Valeurs par défaut si pas en DB
-            button_rows = [
-                [("📝 Passer une commande", "new_quote")],
-                [("📋 Mes Commandes", "my_orders")],
-                [("💬 Contacter le support", "contact_support")]
-            ]
+        keyboard = [
+            [InlineKeyboardButton("📝 Passer une commande", callback_data="new_quote")],
+            [InlineKeyboardButton("📋 Mes Commandes", callback_data="my_orders")],
+            [InlineKeyboardButton("💬 Contacter le support", callback_data="contact_support")]
+        ]
         
-        # Construire le clavier (button_rows est déjà une liste de listes)
-        keyboard = [[InlineKeyboardButton(btn_text, callback_data=callback) for btn_text, callback in row] 
-                    for row in button_rows]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
