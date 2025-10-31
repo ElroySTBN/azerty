@@ -155,7 +155,7 @@ def dashboard():
     if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
-        conn.row_factory = sqlite3.Row
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
     # Stats globales optimisées (une seule requête au lieu de 3)
@@ -234,7 +234,7 @@ def conversation(conv_id):
     if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
-        conn.row_factory = sqlite3.Row
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
     # Infos de la conversation
@@ -276,7 +276,7 @@ def reply(conv_id):
     if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
-        cursor = conn.cursor()
+    cursor = conn.cursor()
     _execute(cursor, 'SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
     result = cursor.fetchone()
     
@@ -482,13 +482,35 @@ N'hésitez pas si vous avez des questions !'''
         conn.close()
         return jsonify({'error': 'Conversation introuvable'}), 404
     
-    telegram_id = conv['telegram_id']
+    # Gérer différents formats de résultats (PostgreSQL dict vs SQLite Row/tuple)
+    if is_postgres and isinstance(conv, dict):
+        telegram_id = conv.get('telegram_id')
+    elif hasattr(conv, '__getitem__') and hasattr(conv, 'keys'):
+        # SQLite Row object
+        telegram_id = conv['telegram_id']
+    else:
+        # Tuple fallback - trouver l'index de telegram_id (normalement colonne 1)
+        telegram_id = conv[1] if conv and len(conv) > 1 else None
+    
+    # Fonction helper pour extraire valeur depuis conv selon format
+    def get_conv_value(key, default=''):
+        if is_postgres and isinstance(conv, dict):
+            return conv.get(key, default)
+        elif hasattr(conv, '__getitem__') and hasattr(conv, 'keys'):
+            return conv.get(key, default) if hasattr(conv, 'get') else conv[key]
+        else:
+            # Tuple fallback - utiliser indices (service_type=3, quantity=4, estimated_price=7)
+            index_map = {'service_type': 3, 'quantity': 4, 'estimated_price': 7}
+            idx = index_map.get(key, -1)
+            if idx >= 0 and conv and len(conv) > idx:
+                return conv[idx] or default
+            return default
     
     # Remplacer les variables [VARIABLE] par les valeurs réelles
-    message = message.replace('[SERVICE]', conv.get('service_type', 'Service'))
-    message = message.replace('[QUANTITE]', str(conv.get('quantity', '?')))
-    message = message.replace('[PRIX]', conv.get('estimated_price', 'À calculer'))
-    message = message.replace('[MONTANT]', conv.get('estimated_price', 'À calculer'))
+    message = message.replace('[SERVICE]', get_conv_value('service_type', 'Service'))
+    message = message.replace('[QUANTITE]', str(get_conv_value('quantity', '?')))
+    message = message.replace('[PRIX]', get_conv_value('estimated_price', 'À calculer'))
+    message = message.replace('[MONTANT]', get_conv_value('estimated_price', 'À calculer'))
     
     # Récupérer l'adresse crypto si sélectionnée
     if crypto_address_id and template_id == 'payment_crypto':
