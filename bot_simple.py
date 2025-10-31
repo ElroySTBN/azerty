@@ -153,7 +153,8 @@ DB_PATH = _resolve_db_path()
 # Log du chemin DB utilisé au démarrage (sera mis à jour après tentative de connexion)
 
 def _connect():
-    """Connexion à la base de données (Supabase PostgreSQL ou SQLite)"""
+    """Connexion à la base de données (Supabase PostgreSQL ou SQLite)
+    Système robuste avec timeout et fallback automatique vers SQLite"""
     global USE_SUPABASE, SUPABASE_FAILED
     # Essayer Supabase si configuré et pas déjà échoué
     if USE_SUPABASE and not SUPABASE_FAILED:
@@ -167,25 +168,54 @@ def _connect():
             db_user = os.getenv('SUPABASE_DB_USER')
             db_password = os.getenv('SUPABASE_DB_PASSWORD')
             
+            # Timeout de connexion (5 secondes) pour éviter les blocages
+            connect_timeout = 5
+            
             if supabase_url:
-                conn = psycopg2.connect(supabase_url)
+                # Si l'URL contient "pooler" ou port 6543, utiliser connection pooling (plus fiable)
+                if 'pooler.supabase.com' in supabase_url or ':6543' in supabase_url:
+                    logger.info("🔗 Utilisation de Supabase Connection Pooling (plus fiable)")
+                
+                conn = psycopg2.connect(
+                    supabase_url,
+                    connect_timeout=connect_timeout,
+                    options='-c statement_timeout=10000'  # Timeout de requête : 10 secondes
+                )
             elif db_host and db_name and db_user and db_password:
+                # Utiliser connection pooling si port 6543, sinon port standard 5432
+                if db_port == '6543' or 'pooler' in db_host:
+                    logger.info("🔗 Utilisation de Supabase Connection Pooling (port 6543)")
+                
                 conn = psycopg2.connect(
                     host=db_host,
                     port=db_port,
                     database=db_name,
                     user=db_user,
-                    password=db_password
+                    password=db_password,
+                    connect_timeout=connect_timeout,
+                    options='-c statement_timeout=10000'
                 )
             else:
                 raise ValueError("Variables Supabase manquantes")
             
+            # Tester la connexion avec une requête simple
+            cursor = conn.cursor()
+            cursor.execute('SELECT 1')
+            cursor.close()
+            
             conn.autocommit = False
+            logger.info("✅ Connexion Supabase réussie")
             return conn
-        except Exception as e:
-            logger.error(f"❌ Erreur connexion Supabase: {e}")
+        except psycopg2.OperationalError as e:
+            logger.error(f"❌ Erreur connexion Supabase (réseau/timeout): {e}")
             logger.warning("⚠️ Fallback vers SQLite - connexion Supabase échouée")
             # Désactiver Supabase pour éviter de réessayer à chaque requête
+            SUPABASE_FAILED = True
+            USE_SUPABASE = False
+            # Continuer avec SQLite ci-dessous
+        except Exception as e:
+            logger.error(f"❌ Erreur connexion Supabase (autre): {e}")
+            logger.warning("⚠️ Fallback vers SQLite - connexion Supabase échouée")
             SUPABASE_FAILED = True
             USE_SUPABASE = False
             # Continuer avec SQLite ci-dessous
