@@ -248,24 +248,24 @@ def conversation(conv_id):
         if is_postgres and PSYCOPG2_AVAILABLE:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
         else:
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    # Infos de la conversation
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        
+        # Infos de la conversation
         _execute(cursor, 'SELECT * FROM conversations WHERE id = ?', (conv_id,))
-    conv = cursor.fetchone()
-    
-    if not conv:
-        return "Conversation introuvable", 404
-    
-    # Messages de la conversation
+        conv = cursor.fetchone()
+        
+        if not conv:
+            return "Conversation introuvable", 404
+        
+        # Messages de la conversation
         _execute(cursor, '''
-        SELECT * FROM messages 
-        WHERE conversation_id = ? 
-        ORDER BY created_at ASC
-    ''', (conv_id,))
-    
-    messages = cursor.fetchall()
+            SELECT * FROM messages 
+            WHERE conversation_id = ? 
+            ORDER BY created_at ASC
+        ''', (conv_id,))
+        
+        messages = cursor.fetchall()
         
         # Charger les adresses crypto pour la sélection
         crypto_addresses = get_crypto_addresses()
