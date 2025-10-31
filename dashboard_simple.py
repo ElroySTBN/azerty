@@ -32,12 +32,18 @@ def get_crypto_addresses():
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
         
-        # Vérifier si la table existe, sinon retourner liste vide
+        # Adapter la condition is_active selon le type de DB
+        # PostgreSQL utilise BOOLEAN (TRUE), SQLite utilise INTEGER (1)
         try:
-            _execute(cursor, 'SELECT * FROM crypto_addresses WHERE is_active = 1 ORDER BY name')
+            if is_postgres:
+                _execute(cursor, "SELECT * FROM crypto_addresses WHERE is_active = TRUE ORDER BY name")
+            else:
+                _execute(cursor, 'SELECT * FROM crypto_addresses WHERE is_active = 1 ORDER BY name')
             addresses = cursor.fetchall()
-        except Exception:
+            print(f"📋 Adresses crypto récupérées : {len(addresses)} adresse(s)")
+        except Exception as e:
             # Si la table n'existe pas encore, retourner liste vide
+            print(f"⚠️ Table crypto_addresses n'existe pas ou erreur : {e}")
             return []
         
         # Convertir en liste de dictionnaires pour faciliter le template
@@ -432,14 +438,57 @@ def add_crypto_address():
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
         
-        _execute(cursor, '''
-            INSERT INTO crypto_addresses (name, address, network, is_active)
-            VALUES (?, ?, ?, ?)
-        ''', (name, address, network, True))
+        # Adapter is_active selon le type de DB : PostgreSQL (BOOL) vs SQLite (INTEGER)
+        is_active_value = True if is_postgres else 1
         
-        conn.commit()
+        # Vérifier que la table existe, sinon la créer
+        try:
+            _execute(cursor, '''
+                INSERT INTO crypto_addresses (name, address, network, is_active)
+                VALUES (?, ?, ?, ?)
+            ''', (name, address, network, is_active_value))
+            conn.commit()
+            print(f"✅ Adresse crypto ajoutée : {name} ({network})")
+        except Exception as e:
+            # Si la table n'existe pas, la créer et réessayer
+            print(f"⚠️ Erreur lors de l'insertion : {e}")
+            if is_postgres:
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS crypto_addresses (
+                        id SERIAL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        address TEXT NOT NULL,
+                        network TEXT NOT NULL,
+                        is_active BOOLEAN DEFAULT TRUE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+            else:
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS crypto_addresses (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        address TEXT NOT NULL,
+                        network TEXT NOT NULL,
+                        is_active INTEGER DEFAULT 1,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+            conn.commit()
+            # Réessayer l'insertion
+            _execute(cursor, '''
+                INSERT INTO crypto_addresses (name, address, network, is_active)
+                VALUES (?, ?, ?, ?)
+            ''', (name, address, network, is_active_value))
+            conn.commit()
+            print(f"✅ Table créée et adresse crypto ajoutée : {name} ({network})")
         
         return redirect('/?view=crypto&success=1')
+    except Exception as e:
+        print(f"❌ Erreur lors de l'ajout de l'adresse crypto : {e}")
+        return redirect('/?view=crypto&error=1')
     finally:
         # TOUJOURS fermer la connexion
         if conn:
