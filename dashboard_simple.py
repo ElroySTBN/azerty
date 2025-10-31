@@ -532,6 +532,98 @@ def delete_crypto_address(addr_id):
             except:
                 pass
 
+@app.route('/bot_config/messages/update', methods=['POST'])
+@login_required
+def update_bot_messages():
+    """Met à jour les messages du bot"""
+    conn = None
+    try:
+        conn = _connect_db()
+        is_postgres = hasattr(conn, 'get_dsn_parameters')
+        if is_postgres and PSYCOPG2_AVAILABLE:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        
+        # Mettre à jour le message de bienvenue
+        welcome_text = request.form.get('message_welcome', '')
+        if welcome_text:
+            # Vérifier si le message existe déjà
+            _execute(cursor, 'SELECT id FROM bot_messages WHERE message_key = ?', ('welcome',))
+            exists = cursor.fetchone()
+            
+            if exists:
+                # Mettre à jour
+                _execute(cursor, '''
+                    UPDATE bot_messages 
+                    SET message_text = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE message_key = ?
+                ''', (welcome_text, 'welcome'))
+            else:
+                # Insérer
+                _execute(cursor, '''
+                    INSERT INTO bot_messages (message_key, message_text, updated_at)
+                    VALUES (?, ?, CURRENT_TIMESTAMP)
+                ''', ('welcome', welcome_text))
+        
+        conn.commit()
+        
+        # Recharger le cache du bot
+        reload_bot_config()
+        
+        return redirect('/?view=bot_config&success=1')
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+@app.route('/bot_config/buttons/update', methods=['POST'])
+@login_required
+def update_bot_buttons():
+    """Met à jour les boutons du bot"""
+    conn = None
+    try:
+        conn = _connect_db()
+        is_postgres = hasattr(conn, 'get_dsn_parameters')
+        if is_postgres and PSYCOPG2_AVAILABLE:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        
+        # Supprimer les anciens boutons pour 'start'
+        _execute(cursor, "DELETE FROM bot_buttons WHERE button_key = 'start'")
+        
+        # Insérer les nouveaux boutons
+        button_texts = request.form.getlist('button_text_start[]')
+        button_callbacks = request.form.getlist('button_callback_start[]')
+        button_rows = request.form.getlist('button_row_start[]')
+        
+        for i, text in enumerate(button_texts):
+            if text and i < len(button_callbacks) and i < len(button_rows):
+                callback = button_callbacks[i]
+                row_pos = int(button_rows[i]) if button_rows[i] else 0
+                _execute(cursor, '''
+                    INSERT INTO bot_buttons (button_key, button_text, callback_data, row_position, updated_at)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ''', ('start', text, callback, row_pos))
+        
+        conn.commit()
+        
+        # Recharger le cache du bot
+        reload_bot_config()
+        
+        return redirect('/?view=bot_config&success=1')
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 @app.route('/conversation/<int:conv_id>/template', methods=['POST'])
 @login_required
 def send_template(conv_id):
