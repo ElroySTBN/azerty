@@ -630,17 +630,49 @@ N'hésitez pas si vous avez des questions !'''
         
         # Récupérer l'adresse crypto si sélectionnée
         if crypto_address_id and template_id == 'payment_crypto':
-            _execute(cursor, 'SELECT * FROM crypto_addresses WHERE id = ? AND is_active = 1', (crypto_address_id,))
-            crypto_addr = cursor.fetchone()
-            if crypto_addr:
-                crypto_address = crypto_addr['address'] if (is_postgres and isinstance(crypto_addr, dict)) else crypto_addr[2]
-                crypto_network = crypto_addr['network'] if (is_postgres and isinstance(crypto_addr, dict)) else crypto_addr[3]
-                message = message.replace('[VOTRE_ADRESSE_CRYPTO]', crypto_address)
-                message = message.replace('[RESEAU]', crypto_network)
-            else:
+            try:
+                # Convertir en entier
+                addr_id = int(crypto_address_id)
+                # Adapter la condition is_active selon le type de DB
+                if is_postgres:
+                    _execute(cursor, "SELECT * FROM crypto_addresses WHERE id = ? AND is_active = TRUE", (addr_id,))
+                else:
+                    _execute(cursor, 'SELECT * FROM crypto_addresses WHERE id = ? AND is_active = 1', (addr_id,))
+                
+                crypto_addr = cursor.fetchone()
+                if crypto_addr:
+                    # Extraire l'adresse et le réseau selon le format de la DB
+                    if is_postgres and isinstance(crypto_addr, dict):
+                        crypto_address = crypto_addr.get('address', 'VOTRE_ADRESSE_ICI')
+                        crypto_network = crypto_addr.get('network', 'Bitcoin / Ethereum / USDT')
+                    elif hasattr(crypto_addr, '__getitem__') and hasattr(crypto_addr, 'keys'):
+                        # SQLite Row object (id=0, name=1, address=2, network=3, is_active=4)
+                        crypto_address = crypto_addr['address'] if 'address' in crypto_addr.keys() else (crypto_addr[2] if len(crypto_addr) > 2 else 'VOTRE_ADRESSE_ICI')
+                        crypto_network = crypto_addr['network'] if 'network' in crypto_addr.keys() else (crypto_addr[3] if len(crypto_addr) > 3 else 'Bitcoin / Ethereum / USDT')
+                    else:
+                        # Tuple fallback (id, name, address, network, is_active)
+                        crypto_address = crypto_addr[2] if len(crypto_addr) > 2 else 'VOTRE_ADRESSE_ICI'
+                        crypto_network = crypto_addr[3] if len(crypto_addr) > 3 else 'Bitcoin / Ethereum / USDT'
+                    
+                    message = message.replace('[VOTRE_ADRESSE_CRYPTO]', crypto_address)
+                    message = message.replace('[RESEAU]', crypto_network)
+                    print(f"✅ Adresse crypto utilisée : {crypto_address[:20]}... ({crypto_network})")
+                else:
+                    print(f"⚠️ Adresse crypto introuvable (ID: {addr_id})")
+                    message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
+                    message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
+            except (ValueError, TypeError) as e:
+                print(f"⚠️ Erreur lors de la récupération de l'adresse crypto : {e}")
+                message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
+                message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
+            except Exception as e:
+                print(f"❌ Erreur inattendue lors de la récupération de l'adresse crypto : {e}")
                 message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
                 message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
         else:
+            # Pas d'adresse sélectionnée ou template différent
+            if template_id == 'payment_crypto':
+                print("⚠️ Aucune adresse crypto sélectionnée pour le template payment_crypto")
             message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
             message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
         
