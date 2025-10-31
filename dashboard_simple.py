@@ -517,91 +517,99 @@ N'hésitez pas si vous avez des questions !'''
     message = templates[template_id]
     
     # Récupérer le telegram_id et infos commande pour remplacer les variables
-    conn = _connect_db()
-    is_postgres = hasattr(conn, 'get_dsn_parameters')
-    if is_postgres and PSYCOPG2_AVAILABLE:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-    else:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-    _execute(cursor, 'SELECT * FROM conversations WHERE id = ?', (conv_id,))
-    conv = cursor.fetchone()
-    
-    if not conv:
-        conn.close()
-        return jsonify({'error': 'Conversation introuvable'}), 404
-    
-    # Gérer différents formats de résultats (PostgreSQL dict vs SQLite Row/tuple)
-    if is_postgres and isinstance(conv, dict):
-        telegram_id = conv.get('telegram_id')
-    elif hasattr(conv, '__getitem__') and hasattr(conv, 'keys'):
-        # SQLite Row object
-        telegram_id = conv['telegram_id']
-    else:
-        # Tuple fallback - trouver l'index de telegram_id (normalement colonne 1)
-        telegram_id = conv[1] if conv and len(conv) > 1 else None
-    
-    # Fonction helper pour extraire valeur depuis conv selon format
-    def get_conv_value(key, default=''):
-        if is_postgres and isinstance(conv, dict):
-            return conv.get(key, default)
-        elif hasattr(conv, '__getitem__') and hasattr(conv, 'keys'):
-            return conv.get(key, default) if hasattr(conv, 'get') else conv[key]
+    conn = None
+    try:
+        conn = _connect_db()
+        is_postgres = hasattr(conn, 'get_dsn_parameters')
+        if is_postgres and PSYCOPG2_AVAILABLE:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
         else:
-            # Tuple fallback - utiliser indices (service_type=3, quantity=4, estimated_price=7)
-            index_map = {'service_type': 3, 'quantity': 4, 'estimated_price': 7}
-            idx = index_map.get(key, -1)
-            if idx >= 0 and conv and len(conv) > idx:
-                return conv[idx] or default
-            return default
-    
-    # Remplacer les variables [VARIABLE] par les valeurs réelles
-    message = message.replace('[SERVICE]', get_conv_value('service_type', 'Service'))
-    message = message.replace('[QUANTITE]', str(get_conv_value('quantity', '?')))
-    message = message.replace('[PRIX]', get_conv_value('estimated_price', 'À calculer'))
-    message = message.replace('[MONTANT]', get_conv_value('estimated_price', 'À calculer'))
-    
-    # Récupérer l'adresse crypto si sélectionnée
-    if crypto_address_id and template_id == 'payment_crypto':
-        _execute(cursor, 'SELECT * FROM crypto_addresses WHERE id = ? AND is_active = 1', (crypto_address_id,))
-        crypto_addr = cursor.fetchone()
-        if crypto_addr:
-            crypto_address = crypto_addr['address'] if (is_postgres and isinstance(crypto_addr, dict)) else crypto_addr[2]
-            crypto_network = crypto_addr['network'] if (is_postgres and isinstance(crypto_addr, dict)) else crypto_addr[3]
-            message = message.replace('[VOTRE_ADRESSE_CRYPTO]', crypto_address)
-            message = message.replace('[RESEAU]', crypto_network)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        
+        _execute(cursor, 'SELECT * FROM conversations WHERE id = ?', (conv_id,))
+        conv = cursor.fetchone()
+        
+        if not conv:
+            return jsonify({'error': 'Conversation introuvable'}), 404
+        
+        # Gérer différents formats de résultats (PostgreSQL dict vs SQLite Row/tuple)
+        if is_postgres and isinstance(conv, dict):
+            telegram_id = conv.get('telegram_id')
+        elif hasattr(conv, '__getitem__') and hasattr(conv, 'keys'):
+            # SQLite Row object
+            telegram_id = conv['telegram_id']
+        else:
+            # Tuple fallback - trouver l'index de telegram_id (normalement colonne 1)
+            telegram_id = conv[1] if conv and len(conv) > 1 else None
+        
+        # Fonction helper pour extraire valeur depuis conv selon format
+        def get_conv_value(key, default=''):
+            if is_postgres and isinstance(conv, dict):
+                return conv.get(key, default)
+            elif hasattr(conv, '__getitem__') and hasattr(conv, 'keys'):
+                return conv.get(key, default) if hasattr(conv, 'get') else conv[key]
+            else:
+                # Tuple fallback - utiliser indices (service_type=3, quantity=4, estimated_price=7)
+                index_map = {'service_type': 3, 'quantity': 4, 'estimated_price': 7}
+                idx = index_map.get(key, -1)
+                if idx >= 0 and conv and len(conv) > idx:
+                    return conv[idx] or default
+                return default
+        
+        # Remplacer les variables [VARIABLE] par les valeurs réelles
+        message = message.replace('[SERVICE]', get_conv_value('service_type', 'Service'))
+        message = message.replace('[QUANTITE]', str(get_conv_value('quantity', '?')))
+        message = message.replace('[PRIX]', get_conv_value('estimated_price', 'À calculer'))
+        message = message.replace('[MONTANT]', get_conv_value('estimated_price', 'À calculer'))
+        
+        # Récupérer l'adresse crypto si sélectionnée
+        if crypto_address_id and template_id == 'payment_crypto':
+            _execute(cursor, 'SELECT * FROM crypto_addresses WHERE id = ? AND is_active = 1', (crypto_address_id,))
+            crypto_addr = cursor.fetchone()
+            if crypto_addr:
+                crypto_address = crypto_addr['address'] if (is_postgres and isinstance(crypto_addr, dict)) else crypto_addr[2]
+                crypto_network = crypto_addr['network'] if (is_postgres and isinstance(crypto_addr, dict)) else crypto_addr[3]
+                message = message.replace('[VOTRE_ADRESSE_CRYPTO]', crypto_address)
+                message = message.replace('[RESEAU]', crypto_network)
+            else:
+                message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
+                message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
         else:
             message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
             message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
-    else:
-        message = message.replace('[VOTRE_ADRESSE_CRYPTO]', 'VOTRE_ADRESSE_ICI')
-        message = message.replace('[RESEAU]', 'Bitcoin / Ethereum / USDT')
-    
-    # Sauvegarder le message en DB
-    _execute(cursor, '''
-        INSERT INTO messages (conversation_id, telegram_id, message, sender)
-        VALUES (?, ?, ?, ?)
-    ''', (conv_id, telegram_id, message, 'admin'))
-    conn.commit()
-    conn.close()
-    
-    # Envoyer via Telegram
-    if bot_app and bot_loop:
-        formatted_message = f"Support 👨‍💼 : {message}"
         
-        async def send_message():
+        # Sauvegarder le message en DB
+        _execute(cursor, '''
+            INSERT INTO messages (conversation_id, telegram_id, message, sender)
+            VALUES (?, ?, ?, ?)
+        ''', (conv_id, telegram_id, message, 'admin'))
+        conn.commit()
+        
+        # Envoyer via Telegram
+        if bot_app and bot_loop:
+            formatted_message = f"Support 👨‍💼 : {message}"
+            
+            async def send_message():
+                try:
+                    await bot_app.bot.send_message(
+                        chat_id=telegram_id,
+                        text=formatted_message,
+                        parse_mode='Markdown'
+                    )
+                except Exception as e:
+                    print(f"Erreur envoi message: {e}")
+            
+            asyncio.run_coroutine_threadsafe(send_message(), bot_loop)
+        
+        return redirect(f'/conversation/{conv_id}')
+    finally:
+        # TOUJOURS fermer la connexion
+        if conn:
             try:
-                await bot_app.bot.send_message(
-                    chat_id=telegram_id,
-                    text=formatted_message,
-                    parse_mode='Markdown'
-                )
-            except Exception as e:
-                print(f"Erreur envoi message: {e}")
-        
-        asyncio.run_coroutine_threadsafe(send_message(), bot_loop)
-    
-    return redirect(f'/conversation/{conv_id}')
+                conn.close()
+            except:
+                pass
 
 # Templates HTML
 LOGIN_TEMPLATE = '''
