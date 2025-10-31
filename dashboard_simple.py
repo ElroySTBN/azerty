@@ -685,6 +685,168 @@ N'hésitez pas si vous avez des questions !'''
             except:
                 pass
 
+@app.route('/conversation/<int:conv_id>/preview', methods=['GET'])
+@login_required
+def preview_template(conv_id):
+    """Affiche une page de prévisualisation/édition du message payment_crypto avant envoi"""
+    crypto_address_id = request.args.get('crypto_address_id')
+    
+    if not crypto_address_id:
+        return redirect(f'/conversation/{conv_id}')
+    
+    conn = None
+    try:
+        conn = _connect_db()
+        is_postgres = hasattr(conn, 'get_dsn_parameters')
+        if is_postgres and PSYCOPG2_AVAILABLE:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        
+        # Récupérer les infos de la conversation
+        _execute(cursor, 'SELECT * FROM conversations WHERE id = ?', (conv_id,))
+        conv = cursor.fetchone()
+        
+        if not conv:
+            return "Conversation introuvable", 404
+        
+        # Fonction helper pour extraire valeur depuis conv
+        def get_conv_value(key, default=''):
+            if is_postgres and isinstance(conv, dict):
+                return conv.get(key, default)
+            elif hasattr(conv, '__getitem__') and hasattr(conv, 'keys'):
+                return conv.get(key, default) if hasattr(conv, 'get') else conv[key]
+            else:
+                index_map = {'service_type': 3, 'quantity': 4, 'estimated_price': 7}
+                idx = index_map.get(key, -1)
+                if idx >= 0 and conv and len(conv) > idx:
+                    return conv[idx] or default
+                return default
+        
+        # Récupérer l'adresse crypto
+        addr_id = int(crypto_address_id)
+        if is_postgres:
+            _execute(cursor, "SELECT * FROM crypto_addresses WHERE id = ? AND is_active = TRUE", (addr_id,))
+        else:
+            _execute(cursor, 'SELECT * FROM crypto_addresses WHERE id = ? AND is_active = 1', (addr_id,))
+        
+        crypto_addr = cursor.fetchone()
+        if not crypto_addr:
+            return redirect(f'/conversation/{conv_id}?error=crypto_not_found')
+        
+        # Extraire l'adresse et le réseau
+        if is_postgres and isinstance(crypto_addr, dict):
+            crypto_address = crypto_addr.get('address', '')
+            crypto_network = crypto_addr.get('network', '')
+        elif hasattr(crypto_addr, '__getitem__') and hasattr(crypto_addr, 'keys'):
+            crypto_address = crypto_addr['address'] if 'address' in crypto_addr.keys() else (crypto_addr[2] if len(crypto_addr) > 2 else '')
+            crypto_network = crypto_addr['network'] if 'network' in crypto_addr.keys() else (crypto_addr[3] if len(crypto_addr) > 3 else '')
+        else:
+            crypto_address = crypto_addr[2] if len(crypto_addr) > 2 else ''
+            crypto_network = crypto_addr[3] if len(crypto_addr) > 3 else ''
+        
+        # Construire le message avec les variables remplacées
+        template = '''💰 *Informations de paiement*
+
+Veuillez effectuer le paiement à l'adresse suivante :
+
+*Adresse crypto :* [VOTRE_ADRESSE_CRYPTO]
+
+*Montant :* [MONTANT]
+*Réseau :* [RESEAU]
+
+Une fois le paiement effectué, vous pouvez m'envoyer :
+• Une capture d'écran de la confirmation de transaction (c'est la solution la plus simple)
+
+Ou bien, si vous êtes à l'aise avec les cryptomonnaies :
+• Le hash de la transaction (cette longue suite de caractères qui confirme votre paiement)'''
+        
+        message = template.replace('[VOTRE_ADRESSE_CRYPTO]', crypto_address)
+        message = message.replace('[MONTANT]', get_conv_value('estimated_price', 'À calculer'))
+        message = message.replace('[RESEAU]', crypto_network)
+        
+        return render_template_string(PREVIEW_TEMPLATE, conv_id=conv_id, message=message, crypto_address_id=crypto_address_id)
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+@app.route('/conversation/<int:conv_id>/send', methods=['POST'])
+@login_required
+def send_final_message(conv_id):
+    """Envoie le message final (modifié ou non) au client"""
+    message = request.form.get('message')
+    crypto_address_id = request.form.get('crypto_address_id')
+    
+    if not message:
+        return redirect(f'/conversation/{conv_id}?error=empty_message')
+    
+    conn = None
+    try:
+        conn = _connect_db()
+        is_postgres = hasattr(conn, 'get_dsn_parameters')
+        if is_postgres and PSYCOPG2_AVAILABLE:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        
+        # Récupérer le telegram_id
+        _execute(cursor, 'SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            return redirect(f'/conversation/{conv_id}?error=conv_not_found')
+        
+        # Extraire telegram_id selon le format
+        if is_postgres and isinstance(result, dict):
+            telegram_id = result.get('telegram_id')
+        elif hasattr(result, '__getitem__') and hasattr(result, 'keys'):
+            telegram_id = result['telegram_id']
+        else:
+            telegram_id = result[1] if result and len(result) > 1 else None
+        
+        # Sauvegarder le message en DB
+        try:
+            _execute(cursor, '''
+                INSERT INTO messages (conversation_id, telegram_id, message, sender)
+                VALUES (?, ?, ?, ?)
+            ''', (conv_id, telegram_id, message, 'admin'))
+            conn.commit()
+            print(f"✅ Message final sauvegardé pour conversation {conv_id}")
+        except Exception as e:
+            print(f"❌ Erreur lors de la sauvegarde du message : {e}")
+            try:
+                conn.rollback()
+            except:
+                pass
+        
+        # Envoyer via Telegram
+        if bot_app and bot_loop:
+            async def send_message():
+                try:
+                    await bot_app.bot.send_message(
+                        chat_id=telegram_id,
+                        text=message,
+                        parse_mode='Markdown'
+                    )
+                    print(f"✅ Message Telegram envoyé à {telegram_id}")
+                except Exception as e:
+                    print(f"❌ Erreur envoi message Telegram: {e}")
+            
+            asyncio.run_coroutine_threadsafe(send_message(), bot_loop)
+        
+        return redirect(f'/conversation/{conv_id}?success=message_sent')
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 # Templates HTML
 LOGIN_TEMPLATE = '''
 <!DOCTYPE html>
