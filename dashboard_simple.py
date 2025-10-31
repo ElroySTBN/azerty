@@ -162,9 +162,9 @@ def dashboard():
         if is_postgres and PSYCOPG2_AVAILABLE:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
         else:
-        conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        
         # Stats globales optimisées (une seule requête au lieu de 3)
         _execute(cursor, '''
             SELECT 
@@ -241,37 +241,43 @@ def dashboard():
 @login_required
 def conversation(conv_id):
     """Affiche une conversation spécifique"""
-    conn = _connect_db()
-    is_postgres = hasattr(conn, 'get_dsn_parameters')
-    if is_postgres and PSYCOPG2_AVAILABLE:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-    else:
-        conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    # Infos de la conversation
-    _execute(cursor, 'SELECT * FROM conversations WHERE id = ?', (conv_id,))
-    conv = cursor.fetchone()
-    
-    if not conv:
-        conn.close()
-        return "Conversation introuvable", 404
-    
-    # Messages de la conversation
-    _execute(cursor, '''
-        SELECT * FROM messages 
-        WHERE conversation_id = ? 
-        ORDER BY created_at ASC
-    ''', (conv_id,))
-    
-    messages = cursor.fetchall()
-    
-    # Charger les adresses crypto pour la sélection
-    crypto_addresses = get_crypto_addresses()
-    
-    conn.close()
-    
-    return render_template_string(CONVERSATION_TEMPLATE, conv=conv, messages=messages, crypto_addresses=crypto_addresses)
+    conn = None
+    try:
+        conn = _connect_db()
+        is_postgres = hasattr(conn, 'get_dsn_parameters')
+        if is_postgres and PSYCOPG2_AVAILABLE:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        
+        # Infos de la conversation
+        _execute(cursor, 'SELECT * FROM conversations WHERE id = ?', (conv_id,))
+        conv = cursor.fetchone()
+        
+        if not conv:
+            return "Conversation introuvable", 404
+        
+        # Messages de la conversation
+        _execute(cursor, '''
+            SELECT * FROM messages 
+            WHERE conversation_id = ? 
+            ORDER BY created_at ASC
+        ''', (conv_id,))
+        
+        messages = cursor.fetchall()
+        
+        # Charger les adresses crypto pour la sélection
+        crypto_addresses = get_crypto_addresses()
+        
+        return render_template_string(CONVERSATION_TEMPLATE, conv=conv, messages=messages, crypto_addresses=crypto_addresses)
+    finally:
+        # TOUJOURS fermer la connexion
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/conversation/<int:conv_id>/reply', methods=['POST'])
 @login_required
