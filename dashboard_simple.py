@@ -22,6 +22,7 @@ except ImportError:
 
 def get_crypto_addresses():
     """Charge toutes les adresses crypto depuis la base de données"""
+    conn = None
     try:
         conn = _connect_db()
         is_postgres = hasattr(conn, 'get_dsn_parameters')
@@ -35,12 +36,9 @@ def get_crypto_addresses():
         try:
             _execute(cursor, 'SELECT * FROM crypto_addresses WHERE is_active = 1 ORDER BY name')
             addresses = cursor.fetchall()
-        except Exception as e:
+        except Exception:
             # Si la table n'existe pas encore, retourner liste vide
-            conn.close()
             return []
-        
-        conn.close()
         
         # Convertir en liste de dictionnaires pour faciliter le template
         result = []
@@ -60,6 +58,13 @@ def get_crypto_addresses():
         # En cas d'erreur, retourner liste vide
         print(f"Erreur get_crypto_addresses: {e}")
         return []
+    finally:
+        # TOUJOURS fermer la connexion
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'lebonmot-secret-key-2024')
@@ -149,65 +154,65 @@ def dashboard():
         )
     
     # Connexion optimisée pour autres vues
-    conn = _connect_db()
-    # Détecter le type de DB depuis la connexion
-    is_postgres = hasattr(conn, 'get_dsn_parameters')
-    if is_postgres and PSYCOPG2_AVAILABLE:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-    else:
-        conn.row_factory = sqlite3.Row
+    conn = None
+    try:
+        conn = _connect_db()
+        # Détecter le type de DB depuis la connexion
+        is_postgres = hasattr(conn, 'get_dsn_parameters')
+        if is_postgres and PSYCOPG2_AVAILABLE:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # Stats globales optimisées (une seule requête au lieu de 3)
-    _execute(cursor, '''
-        SELECT 
-            COUNT(CASE WHEN service_type IS NOT NULL THEN 1 END) as total_orders,
-            COUNT(DISTINCT telegram_id) as total_clients,
-            (SELECT COUNT(*) FROM messages WHERE sender = 'client') as total_messages
-        FROM conversations
-    ''')
-    stats_row = cursor.fetchone()
-    
-    # Gérer les différents formats de résultats (PostgreSQL dict vs SQLite Row/tuple)
-    if is_postgres and isinstance(stats_row, dict):
-        total_orders = stats_row.get('total_orders', 0) or 0
-        total_clients = stats_row.get('total_clients', 0) or 0
-        total_messages = stats_row.get('total_messages', 0) or 0
-    elif hasattr(stats_row, '__getitem__') and hasattr(stats_row, 'keys'):
-        # SQLite Row object
-        total_orders = stats_row['total_orders'] or 0
-        total_clients = stats_row['total_clients'] or 0
-        total_messages = stats_row['total_messages'] or 0
-    else:
-        # Tuple fallback (par index)
-        total_orders = (stats_row[0] if stats_row else 0) or 0
-        total_clients = (stats_row[1] if stats_row and len(stats_row) > 1 else 0) or 0
-        total_messages = (stats_row[2] if stats_row and len(stats_row) > 2 else 0) or 0
-    
-    # Requête optimisée pour conversations avec LEFT JOIN au lieu de sous-requêtes
-    _execute(cursor, '''
-        SELECT 
-            c.*,
-            COUNT(m.id) as message_count,
-            MAX(m.created_at) as last_message_time,
+        # Stats globales optimisées (une seule requête au lieu de 3)
+        _execute(cursor, '''
+            SELECT 
+                COUNT(CASE WHEN service_type IS NOT NULL THEN 1 END) as total_orders,
+                COUNT(DISTINCT telegram_id) as total_clients,
+                (SELECT COUNT(*) FROM messages WHERE sender = 'client') as total_messages
+            FROM conversations
+        ''')
+        stats_row = cursor.fetchone()
+        
+        # Gérer les différents formats de résultats (PostgreSQL dict vs SQLite Row/tuple)
+        if is_postgres and isinstance(stats_row, dict):
+            total_orders = stats_row.get('total_orders', 0) or 0
+            total_clients = stats_row.get('total_clients', 0) or 0
+            total_messages = stats_row.get('total_messages', 0) or 0
+        elif hasattr(stats_row, '__getitem__') and hasattr(stats_row, 'keys'):
+            # SQLite Row object
+            total_orders = stats_row['total_orders'] or 0
+            total_clients = stats_row['total_clients'] or 0
+            total_messages = stats_row['total_messages'] or 0
+        else:
+            # Tuple fallback (par index)
+            total_orders = (stats_row[0] if stats_row else 0) or 0
+            total_clients = (stats_row[1] if stats_row and len(stats_row) > 1 else 0) or 0
+            total_messages = (stats_row[2] if stats_row and len(stats_row) > 2 else 0) or 0
+        
+        # Requête optimisée pour conversations avec LEFT JOIN au lieu de sous-requêtes
+        _execute(cursor, '''
+            SELECT 
+                c.*,
+                COUNT(m.id) as message_count,
+                MAX(m.created_at) as last_message_time,
                (SELECT message FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message
         FROM conversations c
-        LEFT JOIN messages m ON m.conversation_id = c.id
-        GROUP BY c.id
+            LEFT JOIN messages m ON m.conversation_id = c.id
+            GROUP BY c.id
         ORDER BY c.created_at DESC
     ''')
     conversations = cursor.fetchall()
     
-    # Requête simple pour les commandes
-    _execute(cursor, '''
-        SELECT *
-        FROM conversations
-        WHERE service_type IS NOT NULL
-        ORDER BY created_at DESC
+        # Requête simple pour les commandes
+        _execute(cursor, '''
+            SELECT *
+            FROM conversations
+            WHERE service_type IS NOT NULL
+            ORDER BY created_at DESC
     ''')
     orders = cursor.fetchall()
-    
-    conn.close()
     
     stats = {
         'total_orders': total_orders,
@@ -220,10 +225,17 @@ def dashboard():
         conversations=conversations,
         orders=orders,
         stats=stats,
-        view=view,
-        pricing=None,
-        crypto_addresses=[]
-    )
+            view=view,
+            pricing=None,
+            crypto_addresses=[]
+        )
+    finally:
+        # TOUJOURS fermer la connexion
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/conversation/<int:conv_id>')
 @login_required
@@ -234,7 +246,7 @@ def conversation(conv_id):
     if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
-        conn.row_factory = sqlite3.Row
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
     # Infos de la conversation
@@ -270,30 +282,37 @@ def reply(conv_id):
     if not message:
         return jsonify({'error': 'Message vide'}), 400
     
+    conn = None
+    try:
     # Récupérer le telegram_id
-    conn = _connect_db()
-    is_postgres = hasattr(conn, 'get_dsn_parameters')
-    if is_postgres and PSYCOPG2_AVAILABLE:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-    else:
-        cursor = conn.cursor()
-    _execute(cursor, 'SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
+        conn = _connect_db()
+        is_postgres = hasattr(conn, 'get_dsn_parameters')
+        if is_postgres and PSYCOPG2_AVAILABLE:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+    cursor = conn.cursor()
+        
+        _execute(cursor, 'SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
     result = cursor.fetchone()
     
     if not result:
-        conn.close()
-        return jsonify({'error': 'Conversation introuvable'}), 404
-    
-    is_postgres = hasattr(conn, 'get_dsn_parameters')
-    telegram_id = result['telegram_id'] if (is_postgres and isinstance(result, dict)) else result[0]
-    
-    # Sauvegarder le message en DB
-    _execute(cursor, '''
-        INSERT INTO messages (conversation_id, telegram_id, message, sender)
-        VALUES (?, ?, ?, ?)
-    ''', (conv_id, telegram_id, message, 'admin'))
-    conn.commit()
-    conn.close()
+            return jsonify({'error': 'Conversation introuvable'}), 404
+        
+        telegram_id = result['telegram_id'] if (is_postgres and isinstance(result, dict)) else result[0]
+        
+        # Sauvegarder le message en DB
+        _execute(cursor, '''
+            INSERT INTO messages (conversation_id, telegram_id, message, sender)
+            VALUES (?, ?, ?, ?)
+        ''', (conv_id, telegram_id, message, 'admin'))
+        conn.commit()
+    finally:
+        # TOUJOURS fermer la connexion
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
     
     # Envoyer via Telegram
     if bot_app and bot_loop:
@@ -317,50 +336,58 @@ def reply(conv_id):
 @login_required
 def update_pricing():
     """Met à jour les prix depuis le dashboard"""
-    conn = _connect_db()
-    is_postgres = hasattr(conn, 'get_dsn_parameters')
-    if is_postgres and PSYCOPG2_AVAILABLE:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-    else:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-    
-    # Services disponibles
-    services = ['google', 'trustpilot', 'forum', 'pagesjaunes', 'autre_plateforme', 'suppression']
-    
-    updated_count = 0
-    for service_key in services:
-        name = request.form.get(f'name_{service_key}')
-        price = request.form.get(f'price_{service_key}')
-        currency = request.form.get(f'currency_{service_key}', 'EUR')
+    conn = None
+    try:
+        conn = _connect_db()
+        is_postgres = hasattr(conn, 'get_dsn_parameters')
+        if is_postgres and PSYCOPG2_AVAILABLE:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
         
-        if name and price:
-            # Vérifier si le service existe déjà
-            _execute(cursor, 'SELECT id FROM pricing WHERE service_key = ?', (service_key,))
-            exists = cursor.fetchone()
+        # Services disponibles
+        services = ['google', 'trustpilot', 'forum', 'pagesjaunes', 'autre_plateforme', 'suppression']
+        
+        updated_count = 0
+        for service_key in services:
+            name = request.form.get(f'name_{service_key}')
+            price = request.form.get(f'price_{service_key}')
+            currency = request.form.get(f'currency_{service_key}', 'EUR')
             
-            if exists:
-                # Mettre à jour
-                _execute(cursor, '''
-                    UPDATE pricing 
-                    SET price = ?, currency = ?, name = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE service_key = ?
-                ''', (price, currency, name, service_key))
-            else:
-                # Insérer
-                _execute(cursor, '''
-                    INSERT INTO pricing (service_key, price, currency, name)
-                    VALUES (?, ?, ?, ?)
-                ''', (service_key, price, currency, name))
-            updated_count += 1
-    
-    conn.commit()
-    conn.close()
-    
-    # Recharger les prix dans le bot
-    reload_pricing()
-    
-    return redirect('/?view=pricing&success=1')
+            if name and price:
+                # Vérifier si le service existe déjà
+                _execute(cursor, 'SELECT id FROM pricing WHERE service_key = ?', (service_key,))
+                exists = cursor.fetchone()
+                
+                if exists:
+                    # Mettre à jour
+                    _execute(cursor, '''
+                        UPDATE pricing 
+                        SET price = ?, currency = ?, name = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE service_key = ?
+                    ''', (price, currency, name, service_key))
+                else:
+                    # Insérer
+                    _execute(cursor, '''
+                        INSERT INTO pricing (service_key, price, currency, name)
+                        VALUES (?, ?, ?, ?)
+                    ''', (service_key, price, currency, name))
+                updated_count += 1
+        
+        conn.commit()
+        
+        # Recharger les prix dans le bot
+        reload_pricing()
+        
+        return redirect('/?view=pricing&success=1')
+    finally:
+        # TOUJOURS fermer la connexion
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/crypto/add', methods=['POST'])
 @login_required
@@ -373,46 +400,62 @@ def add_crypto_address():
     if not name or not address or not network:
         return redirect('/?view=crypto&error=1')
     
-    conn = _connect_db()
-    is_postgres = hasattr(conn, 'get_dsn_parameters')
-    if is_postgres and PSYCOPG2_AVAILABLE:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-    else:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-    
-    _execute(cursor, '''
-        INSERT INTO crypto_addresses (name, address, network, is_active)
-        VALUES (?, ?, ?, ?)
-    ''', (name, address, network, True))
-    
-    conn.commit()
-    conn.close()
-    
-    return redirect('/?view=crypto&success=1')
+    conn = None
+    try:
+        conn = _connect_db()
+        is_postgres = hasattr(conn, 'get_dsn_parameters')
+        if is_postgres and PSYCOPG2_AVAILABLE:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        
+        _execute(cursor, '''
+            INSERT INTO crypto_addresses (name, address, network, is_active)
+            VALUES (?, ?, ?, ?)
+        ''', (name, address, network, True))
+        
+        conn.commit()
+        
+        return redirect('/?view=crypto&success=1')
+    finally:
+        # TOUJOURS fermer la connexion
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/crypto/delete/<int:addr_id>', methods=['POST'])
 @login_required
 def delete_crypto_address(addr_id):
     """Supprime une adresse crypto (soft delete en la désactivant)"""
-    conn = _connect_db()
-    is_postgres = hasattr(conn, 'get_dsn_parameters')
-    if is_postgres and PSYCOPG2_AVAILABLE:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-    else:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-    
-    _execute(cursor, '''
-        UPDATE crypto_addresses 
-        SET is_active = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-    ''', (False, addr_id))
-    
-    conn.commit()
-    conn.close()
-    
-    return redirect('/?view=crypto&success=1')
+    conn = None
+    try:
+        conn = _connect_db()
+        is_postgres = hasattr(conn, 'get_dsn_parameters')
+        if is_postgres and PSYCOPG2_AVAILABLE:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        
+        _execute(cursor, '''
+            UPDATE crypto_addresses 
+            SET is_active = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (False, addr_id))
+        
+        conn.commit()
+        
+        return redirect('/?view=crypto&success=1')
+    finally:
+        # TOUJOURS fermer la connexion
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 @app.route('/conversation/<int:conv_id>/template', methods=['POST'])
 @login_required
