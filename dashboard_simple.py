@@ -197,34 +197,34 @@ def dashboard():
                 c.*,
                 COUNT(m.id) as message_count,
                 MAX(m.created_at) as last_message_time,
-               (SELECT message FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message
-        FROM conversations c
+                (SELECT message FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message
+            FROM conversations c
             LEFT JOIN messages m ON m.conversation_id = c.id
             GROUP BY c.id
-        ORDER BY c.created_at DESC
-    ''')
-    conversations = cursor.fetchall()
-    
+            ORDER BY c.created_at DESC
+        ''')
+        conversations = cursor.fetchall()
+        
         # Requête simple pour les commandes
         _execute(cursor, '''
             SELECT *
             FROM conversations
             WHERE service_type IS NOT NULL
             ORDER BY created_at DESC
-    ''')
-    orders = cursor.fetchall()
-    
-    stats = {
-        'total_orders': total_orders,
-        'total_clients': total_clients,
-        'total_messages': total_messages
-    }
-    
-    return render_template_string(
-        DASHBOARD_TEMPLATE, 
-        conversations=conversations,
-        orders=orders,
-        stats=stats,
+        ''')
+        orders = cursor.fetchall()
+        
+        stats = {
+            'total_orders': total_orders,
+            'total_clients': total_clients,
+            'total_messages': total_messages
+        }
+        
+        return render_template_string(
+            DASHBOARD_TEMPLATE, 
+            conversations=conversations,
+            orders=orders,
+            stats=stats,
             view=view,
             pricing=None,
             crypto_addresses=[]
