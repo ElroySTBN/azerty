@@ -394,6 +394,10 @@ def delete_crypto_address(addr_id):
 def send_template(conv_id):
     """Envoie un template de message"""
     template_id = request.form.get('template_id')
+    crypto_address_id = request.form.get('crypto_address_id')  # ID de l'adresse sélectionnée
+    
+    if not template_id:
+        return jsonify({'error': 'Template introuvable'}), 400
     
     # Templates de messages
     templates = {
