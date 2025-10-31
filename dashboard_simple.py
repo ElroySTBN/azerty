@@ -162,7 +162,7 @@ def dashboard():
         if is_postgres and PSYCOPG2_AVAILABLE:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
         else:
-    conn.row_factory = sqlite3.Row
+        conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
         # Stats globales optimisées (une seule requête au lieu de 3)
@@ -246,7 +246,7 @@ def conversation(conv_id):
     if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
-    conn.row_factory = sqlite3.Row
+        conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
     # Infos de la conversation
@@ -290,7 +290,7 @@ def reply(conv_id):
         if is_postgres and PSYCOPG2_AVAILABLE:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
         else:
-    cursor = conn.cursor()
+        cursor = conn.cursor()
         
         _execute(cursor, 'SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
     result = cursor.fetchone()
