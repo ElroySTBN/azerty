@@ -225,7 +225,8 @@ def init_simple_db():
     else:
         logger.info(f"📁 Base de données : {DB_PATH} (abs: {os.path.abspath(DB_PATH)})")
     
-    if USE_SUPABASE:
+    # Détecter le type de DB depuis la connexion réelle (pas le flag)
+    if is_postgres:
         # Schéma PostgreSQL (Supabase)
         # Table des conversations
         cursor.execute('''
