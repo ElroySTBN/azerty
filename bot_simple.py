@@ -43,6 +43,7 @@ PRICING = PRICING_DEFAULT.copy()
 
 def get_pricing():
     """Charge les prix depuis la base de données, avec fallback sur les valeurs par défaut"""
+    conn = None
     try:
         conn = _connect()
         cursor = conn.cursor()
@@ -63,8 +64,6 @@ def get_pricing():
                 'name': name
             }
         
-        conn.close()
-        
         # Si aucun prix en DB, utiliser les valeurs par défaut
         if not pricing:
             return PRICING_DEFAULT.copy()
@@ -77,11 +76,13 @@ def get_pricing():
         return pricing
     except Exception as e:
         logger.warning(f"⚠️ Erreur chargement prix depuis DB: {e}, utilisation des valeurs par défaut")
-        try:
-            conn.close()
-        except:
-            pass
         return PRICING_DEFAULT.copy()
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 def get_service_price(service_key):
     """Récupère le prix d'un service spécifique"""
