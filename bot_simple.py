@@ -186,9 +186,7 @@ def _connect():
             logger.error(f"❌ Erreur connexion Supabase: {e}")
             logger.warning("⚠️ Fallback vers SQLite")
             # Fallback automatique vers SQLite si Supabase échoue
-            global USE_SUPABASE
-            USE_SUPABASE = False
-            # Continuer avec SQLite
+            # Ne peut pas modifier USE_SUPABASE global ici, donc on utilise SQLite directement
     else:
         # Connexion SQLite optimisée (sans WAL pour éviter problèmes de persistance)
         conn = sqlite3.connect(DB_PATH, check_same_thread=False)
