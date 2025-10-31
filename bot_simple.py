@@ -9,7 +9,11 @@ from datetime import datetime
 import sqlite3
 import os
 
-# Support Supabase (PostgreSQL)
+# Configuration du logger en premier
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Support Supabase (PostgreSQL) - APRÈS la création du logger
 USE_SUPABASE = bool(os.getenv('SUPABASE_URL'))
 if USE_SUPABASE:
     try:
@@ -19,9 +23,6 @@ if USE_SUPABASE:
     except ImportError:
         logger.warning("⚠️ psycopg2-binary non installé, utilisation de SQLite")
         USE_SUPABASE = False
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Grille tarifaire
 PRICING = {
