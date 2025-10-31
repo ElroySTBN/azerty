@@ -1111,11 +1111,52 @@ CONVERSATION_TEMPLATE = '''
         <div style="margin-bottom: 15px;">
             <div style="font-weight: 600; margin-bottom: 10px; color: #667eea;">📝 Templates rapides :</div>
             <div class="template-buttons">
-                <button type="button" onclick="insertTemplate('payment_crypto')" class="template-btn" style="background: #667eea; color: white;">💰 Paiement Crypto</button>
-                <button type="button" onclick="insertTemplate('payment_received')" class="template-btn" style="background: #28a745; color: white;">✅ Paiement reçu</button>
-                <button type="button" onclick="insertTemplate('order_confirmed')" class="template-btn" style="background: #17a2b8; color: white;">✅ Commande confirmée</button>
-                <button type="button" onclick="insertTemplate('follow_up')" class="template-btn" style="background: #ffc107; color: #333;">👋 Suivi</button>
+                <button type="button" onclick="showCryptoModal()" class="template-btn" style="background: #667eea; color: white;">💰 Paiement Crypto</button>
+                <form method="POST" action="/conversation/{{ conv.id }}/template" style="display: inline;">
+                    <input type="hidden" name="template_id" value="payment_received">
+                    <button type="submit" class="template-btn" style="background: #28a745; color: white;">✅ Paiement reçu</button>
+                </form>
+                <form method="POST" action="/conversation/{{ conv.id }}/template" style="display: inline;">
+                    <input type="hidden" name="template_id" value="order_confirmed">
+                    <button type="submit" class="template-btn" style="background: #17a2b8; color: white;">✅ Commande confirmée</button>
+                </form>
+                <form method="POST" action="/conversation/{{ conv.id }}/template" style="display: inline;">
+                    <input type="hidden" name="template_id" value="follow_up">
+                    <button type="submit" class="template-btn" style="background: #ffc107; color: #333;">👋 Suivi</button>
+                </form>
             </div>
+        </div>
+    </div>
+    
+    <!-- Modal pour choisir l'adresse crypto -->
+    <div id="cryptoModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
+            <h3 style="margin-bottom: 20px; color: #333;">₿ Choisir une adresse crypto</h3>
+            <form method="POST" action="/conversation/{{ conv.id }}/template" id="cryptoForm">
+                <input type="hidden" name="template_id" value="payment_crypto">
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #666;">Sélectionnez une adresse :</label>
+                    <select name="crypto_address_id" required style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;">
+                        <option value="">-- Choisir une adresse --</option>
+                        {% for addr in crypto_addresses %}
+                        <option value="{{ addr.id }}">{{ addr.name }} ({{ addr.network }})</option>
+                        {% endfor %}
+                    </select>
+                    {% if not crypto_addresses %}
+                    <p style="margin-top: 10px; color: #dc3545; font-size: 13px;">
+                        ⚠️ Aucune adresse disponible. <a href="/?view=crypto" style="color: #667eea;">Ajoutez-en une ici</a>.
+                    </p>
+                    {% endif %}
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button type="button" onclick="closeCryptoModal()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                        Annuler
+                    </button>
+                    <button type="submit" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                        Envoyer
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
     
@@ -1178,6 +1219,24 @@ N'hésitez pas si vous avez des questions !`
             let template = templates[templateId];
             textarea.value = template;
             textarea.focus();
+        }
+        
+        function showCryptoModal() {
+            document.getElementById('cryptoModal').style.display = 'flex';
+        }
+        
+        function closeCryptoModal() {
+            document.getElementById('cryptoModal').style.display = 'none';
+        }
+        
+        // Fermer le modal en cliquant à l'extérieur
+        const modal = document.getElementById('cryptoModal');
+        if (modal) {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeCryptoModal();
+                }
+            });
         }
     </script>
 </body>
