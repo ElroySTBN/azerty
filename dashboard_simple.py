@@ -296,12 +296,12 @@ def reply(conv_id):
         if is_postgres and PSYCOPG2_AVAILABLE:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
         else:
-        cursor = conn.cursor()
+            cursor = conn.cursor()
         
         _execute(cursor, 'SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
-    result = cursor.fetchone()
-    
-    if not result:
+        result = cursor.fetchone()
+        
+        if not result:
             return jsonify({'error': 'Conversation introuvable'}), 404
         
         telegram_id = result['telegram_id'] if (is_postgres and isinstance(result, dict)) else result[0]
