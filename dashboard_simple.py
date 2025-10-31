@@ -12,35 +12,6 @@ import os
 # Importer DB_PATH et fonctions de connexion depuis bot_simple
 from bot_simple import DB_PATH, USE_SUPABASE, _connect, _execute, get_pricing, reload_pricing
 
-def get_crypto_addresses():
-    """Charge toutes les adresses crypto depuis la base de données"""
-    conn = _connect_db()
-    is_postgres = hasattr(conn, 'get_dsn_parameters')
-    if is_postgres and PSYCOPG2_AVAILABLE:
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
-    else:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-    
-    _execute(cursor, 'SELECT * FROM crypto_addresses WHERE is_active = 1 ORDER BY name')
-    addresses = cursor.fetchall()
-    conn.close()
-    
-    # Convertir en liste de dictionnaires pour faciliter le template
-    result = []
-    for addr in addresses:
-        if is_postgres:
-            result.append(dict(addr))
-        else:
-            result.append({
-                'id': addr['id'],
-                'name': addr['name'],
-                'address': addr['address'],
-                'network': addr['network'],
-                'is_active': addr['is_active']
-            })
-    return result
-
 # Import conditionnel pour RealDictCursor (seulement si Supabase disponible)
 try:
     from psycopg2.extras import RealDictCursor
@@ -48,6 +19,47 @@ try:
 except ImportError:
     PSYCOPG2_AVAILABLE = False
     RealDictCursor = None
+
+def get_crypto_addresses():
+    """Charge toutes les adresses crypto depuis la base de données"""
+    try:
+        conn = _connect_db()
+        is_postgres = hasattr(conn, 'get_dsn_parameters')
+        if is_postgres and PSYCOPG2_AVAILABLE:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        
+        # Vérifier si la table existe, sinon retourner liste vide
+        try:
+            _execute(cursor, 'SELECT * FROM crypto_addresses WHERE is_active = 1 ORDER BY name')
+            addresses = cursor.fetchall()
+        except Exception as e:
+            # Si la table n'existe pas encore, retourner liste vide
+            conn.close()
+            return []
+        
+        conn.close()
+        
+        # Convertir en liste de dictionnaires pour faciliter le template
+        result = []
+        for addr in addresses:
+            if is_postgres:
+                result.append(dict(addr))
+            else:
+                result.append({
+                    'id': addr['id'],
+                    'name': addr['name'],
+                    'address': addr['address'],
+                    'network': addr['network'],
+                    'is_active': addr['is_active']
+                })
+        return result
+    except Exception as e:
+        # En cas d'erreur, retourner liste vide
+        print(f"Erreur get_crypto_addresses: {e}")
+        return []
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'lebonmot-secret-key-2024')
@@ -143,8 +155,8 @@ def dashboard():
     if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
     
     # Stats globales optimisées (une seule requête au lieu de 3)
     _execute(cursor, '''
@@ -209,8 +221,8 @@ def conversation(conv_id):
     if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
     
     # Infos de la conversation
     _execute(cursor, 'SELECT * FROM conversations WHERE id = ?', (conv_id,))
@@ -251,7 +263,7 @@ def reply(conv_id):
     if is_postgres and PSYCOPG2_AVAILABLE:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
     else:
-        cursor = conn.cursor()
+    cursor = conn.cursor()
     _execute(cursor, 'SELECT telegram_id FROM conversations WHERE id = ?', (conv_id,))
     result = cursor.fetchone()
     
