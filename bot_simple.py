@@ -93,6 +93,105 @@ def reload_pricing():
     global PRICING
     PRICING = get_pricing()
 
+# Cache global pour les messages et boutons du bot
+BOT_MESSAGES_CACHE = {}
+BOT_BUTTONS_CACHE = {}
+
+def get_bot_message(message_key, default=""):
+    """Récupère un message du bot depuis la DB (avec cache)"""
+    global BOT_MESSAGES_CACHE
+    
+    # Utiliser le cache si disponible
+    if message_key in BOT_MESSAGES_CACHE:
+        return BOT_MESSAGES_CACHE[message_key]
+    
+    conn = None
+    try:
+        conn = _connect()
+        cursor = conn.cursor()
+        _execute(cursor, 'SELECT message_text FROM bot_messages WHERE message_key = ?', (message_key,))
+        result = cursor.fetchone()
+        
+        if result:
+            message_text = result[0] if isinstance(result, tuple) else result['message_text']
+            BOT_MESSAGES_CACHE[message_key] = message_text
+            return message_text
+        else:
+            # Si pas en DB, utiliser la valeur par défaut et l'insérer
+            if default:
+                _execute(cursor, '''
+                    INSERT INTO bot_messages (message_key, message_text)
+                    VALUES (?, ?)
+                ''', (message_key, default))
+                conn.commit()
+                BOT_MESSAGES_CACHE[message_key] = default
+            return default
+    except Exception as e:
+        logger.warning(f"⚠️ Erreur get_bot_message({message_key}): {e}")
+        return default
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+def get_bot_buttons(button_key):
+    """Récupère les boutons pour un écran donné depuis la DB (avec cache)"""
+    global BOT_BUTTONS_CACHE
+    
+    cache_key = f"buttons_{button_key}"
+    if cache_key in BOT_BUTTONS_CACHE:
+        return BOT_BUTTONS_CACHE[cache_key]
+    
+    conn = None
+    try:
+        conn = _connect()
+        cursor = conn.cursor()
+        _execute(cursor, '''
+            SELECT button_text, callback_data, row_position
+            FROM bot_buttons
+            WHERE button_key = ?
+            ORDER BY row_position, id
+        ''', (button_key,))
+        results = cursor.fetchall()
+        
+        if results:
+            # Organiser par rangée
+            rows = {}
+            for row in results:
+                if isinstance(row, tuple):
+                    btn_text, callback, row_pos = row[0], row[1], row[2]
+                else:
+                    btn_text, callback, row_pos = row['button_text'], row['callback_data'], row['row_position']
+                
+                if row_pos not in rows:
+                    rows[row_pos] = []
+                rows[row_pos].append((btn_text, callback))
+            
+            # Convertir en liste de listes
+            buttons = [rows[i] for i in sorted(rows.keys())]
+            BOT_BUTTONS_CACHE[cache_key] = buttons
+            return buttons
+        else:
+            return []
+    except Exception as e:
+        logger.warning(f"⚠️ Erreur get_bot_buttons({button_key}): {e}")
+        return []
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
+def reload_bot_config():
+    """Recharge les messages et boutons depuis la DB (à appeler après modification)"""
+    global BOT_MESSAGES_CACHE, BOT_BUTTONS_CACHE
+    BOT_MESSAGES_CACHE.clear()
+    BOT_BUTTONS_CACHE.clear()
+    logger.info("✅ Cache des messages et boutons rechargé")
+
 # État des conversations
 user_conversations = {}
 
@@ -421,6 +520,29 @@ def init_simple_db():
             )
         ''')
         
+        # Table des messages du bot (configurable depuis dashboard)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS bot_messages (
+                id SERIAL PRIMARY KEY,
+                message_key TEXT UNIQUE NOT NULL,
+                message_text TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Table des boutons du bot (configurable depuis dashboard)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS bot_buttons (
+                id SERIAL PRIMARY KEY,
+                button_key TEXT NOT NULL,
+                button_text TEXT NOT NULL,
+                callback_data TEXT NOT NULL,
+                row_position INTEGER DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(button_key, row_position)
+            )
+        ''')
+        
         # Insérer les prix par défaut si la table est vide
         cursor.execute('SELECT COUNT(*) FROM pricing')
         if cursor.fetchone()[0] == 0:
@@ -509,6 +631,29 @@ def init_simple_db():
             )
         ''')
         
+        # Table des messages du bot (configurable depuis dashboard)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS bot_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_key TEXT UNIQUE NOT NULL,
+                message_text TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Table des boutons du bot (configurable depuis dashboard)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS bot_buttons (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                button_key TEXT NOT NULL,
+                button_text TEXT NOT NULL,
+                callback_data TEXT NOT NULL,
+                row_position INTEGER DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(button_key, row_position)
+            )
+        ''')
+        
         # Insérer les prix par défaut si la table est vide
         cursor.execute('SELECT COUNT(*) FROM pricing')
         if cursor.fetchone()[0] == 0:
@@ -580,7 +725,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Réinitialiser l'état de conversation
         user_conversations[telegram_id] = {'step': 'menu'}
         
-        welcome_text = f"""🔐 **Reputalys**
+        # Charger le message depuis la DB (avec fallback par défaut)
+        welcome_text = get_bot_message('welcome', """🔐 **Reputalys**
 _Service Anonyme de E-réputation_
 
 ━━━━━━━━━━━━━━━━━━
@@ -594,14 +740,21 @@ _Service Anonyme de E-réputation_
 ✅ Délai moyen : 48-72h
 ━━━━━━━━━━━━━━━━━━
 
-Que souhaitez-vous faire aujourd'hui ?"""
+Que souhaitez-vous faire aujourd'hui ?""")
 
-        keyboard = [
-            [InlineKeyboardButton("📝 Passer une commande", callback_data="new_quote")],
-            [InlineKeyboardButton("📋 Mes Commandes", callback_data="my_orders")],
-            [InlineKeyboardButton("💬 Contacter le support", callback_data="contact_support")]
-        ]
+        # Charger les boutons depuis la DB (avec fallback par défaut)
+        button_rows = get_bot_buttons('start')
+        if not button_rows:
+            # Valeurs par défaut si pas en DB
+            button_rows = [
+                [("📝 Passer une commande", "new_quote")],
+                [("📋 Mes Commandes", "my_orders")],
+                [("💬 Contacter le support", "contact_support")]
+            ]
         
+        # Construire le clavier (button_rows est déjà une liste de listes)
+        keyboard = [[InlineKeyboardButton(btn_text, callback_data=callback) for btn_text, callback in row] 
+                    for row in button_rows]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')

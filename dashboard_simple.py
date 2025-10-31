@@ -10,7 +10,7 @@ import asyncio
 import os
 
 # Importer DB_PATH et fonctions de connexion depuis bot_simple
-from bot_simple import DB_PATH, USE_SUPABASE, _connect, _execute, get_pricing, reload_pricing
+from bot_simple import DB_PATH, USE_SUPABASE, _connect, _execute, get_pricing, reload_pricing, get_bot_message, get_bot_buttons, reload_bot_config
 
 # Import conditionnel pour RealDictCursor (seulement si Supabase disponible)
 try:
@@ -132,7 +132,9 @@ def dashboard():
             stats=stats,
             view=view,
             pricing=pricing_data,
-            crypto_addresses=[]
+            crypto_addresses=[],
+            bot_messages=None,
+            bot_buttons=None
         )
     
     # Si vue crypto, charger les adresses directement
@@ -150,8 +152,73 @@ def dashboard():
             stats=stats,
             view=view,
             pricing=None,
-            crypto_addresses=crypto_addresses
+            crypto_addresses=crypto_addresses,
+            bot_messages=None,
+            bot_buttons=None
         )
+    
+    # Si vue bot_config, charger les messages et boutons
+    if view == 'bot_config':
+        conn = None
+        try:
+            conn = _connect_db()
+            is_postgres = hasattr(conn, 'get_dsn_parameters')
+            if is_postgres and PSYCOPG2_AVAILABLE:
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
+            else:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+            
+            # Charger tous les messages
+            _execute(cursor, 'SELECT message_key, message_text FROM bot_messages ORDER BY message_key')
+            messages = cursor.fetchall()
+            bot_messages = {}
+            for msg in messages:
+                key = msg['message_key'] if (is_postgres and isinstance(msg, dict)) else msg[0]
+                text = msg['message_text'] if (is_postgres and isinstance(msg, dict)) else msg[1]
+                bot_messages[key] = text
+            
+            # Charger tous les boutons groupés par button_key
+            _execute(cursor, 'SELECT button_key, button_text, callback_data, row_position FROM bot_buttons ORDER BY button_key, row_position, id')
+            buttons_data = cursor.fetchall()
+            bot_buttons = {}
+            for btn in buttons_data:
+                key = btn['button_key'] if (is_postgres and isinstance(btn, dict)) else btn[0]
+                text = btn['button_text'] if (is_postgres and isinstance(btn, dict)) else btn[1]
+                callback = btn['callback_data'] if (is_postgres and isinstance(btn, dict)) else btn[2]
+                row_pos = btn['row_position'] if (is_postgres and isinstance(btn, dict)) else btn[3]
+                
+                if key not in bot_buttons:
+                    bot_buttons[key] = []
+                bot_buttons[key].append({
+                    'text': text,
+                    'callback': callback,
+                    'row_position': row_pos
+                })
+            
+            stats = {
+                'total_orders': 0,
+                'total_clients': 0,
+                'total_messages': 0
+            }
+            
+            return render_template_string(
+                DASHBOARD_TEMPLATE, 
+                conversations=[],
+                orders=[],
+                stats=stats,
+                view=view,
+                pricing=None,
+                crypto_addresses=[],
+                bot_messages=bot_messages,
+                bot_buttons=bot_buttons
+            )
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
     
     # Connexion optimisée pour autres vues
     conn = None
@@ -227,7 +294,9 @@ def dashboard():
             stats=stats,
             view=view,
             pricing=None,
-            crypto_addresses=[]
+            crypto_addresses=[],
+            bot_messages=None,
+            bot_buttons=None
         )
     finally:
         # TOUJOURS fermer la connexion
@@ -864,6 +933,9 @@ DASHBOARD_TEMPLATE = '''
             <a href="/?view=crypto" class="tab {% if view == 'crypto' %}active{% endif %}">
                 ₿ Adresses Crypto
             </a>
+            <a href="/?view=bot_config" class="tab {% if view == 'bot_config' %}active{% endif %}">
+                🤖 Configuration Bot
+            </a>
         </div>
         
         <!-- Content based on view -->
@@ -1061,6 +1133,100 @@ DASHBOARD_TEMPLATE = '''
                 <strong>💡 Note :</strong> Les prix sont stockés dans la base de données (Supabase ou SQLite). 
                 Ils persistent même après redéploiement et sont utilisés immédiatement par le bot.
             </div>
+        
+        {% elif view == 'bot_config' %}
+            <h2 class="section-title">🤖 Configuration du Bot</h2>
+            {% if request.args.get('success') %}
+            <div style="margin-bottom: 20px; padding: 15px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 4px; color: #155724;">
+                ✅ <strong>Configuration enregistrée avec succès !</strong> Les modifications sont actives immédiatement.
+            </div>
+            {% endif %}
+            <p style="margin-bottom: 20px; color: #666;">Modifiez les messages et boutons du bot. Les modifications sont enregistrées immédiatement et persistent même après redéploiement. <strong>Le bot n'a pas besoin de redémarrer !</strong></p>
+            
+            <!-- Messages du bot -->
+            <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+                <h3 style="margin-bottom: 15px; color: #333; font-size: 18px;">💬 Messages du Bot</h3>
+                <form method="POST" action="/bot_config/messages/update">
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #666;">Message de bienvenue (/start) :</label>
+                        <textarea name="message_welcome" rows="8" 
+                                  style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 13px;"
+                                  placeholder="Le message affiché lors de /start...">{{ bot_messages.get('welcome', '') if bot_messages else '' }}</textarea>
+                        <small style="color: #999; display: block; margin-top: 5px;">Utilisez Markdown : **gras**, _italique_, etc.</small>
+                    </div>
+                    <button type="submit" style="background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: 600;">
+                        💾 Enregistrer les Messages
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Boutons du bot -->
+            <div style="background: white; padding: 20px; border-radius: 8px;">
+                <h3 style="margin-bottom: 15px; color: #333; font-size: 18px;">🔘 Boutons du Bot</h3>
+                <form method="POST" action="/bot_config/buttons/update" id="buttonsForm">
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="margin-bottom: 10px; color: #667eea;">Écran de bienvenue (/start) :</h4>
+                        <div id="startButtons">
+                            {% if bot_buttons and bot_buttons.get('start') %}
+                                {% for btn in bot_buttons['start'] %}
+                                <div style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center;">
+                                    <input type="text" name="button_text_start[]" value="{{ btn.text }}" 
+                                           placeholder="Texte du bouton" 
+                                           style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
+                                    <input type="text" name="button_callback_start[]" value="{{ btn.callback }}" 
+                                           placeholder="callback_data" 
+                                           style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 12px;" required>
+                                    <input type="number" name="button_row_start[]" value="{{ btn.row_position }}" min="0" 
+                                           placeholder="Rangée" 
+                                           style="width: 80px; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
+                                    <button type="button" onclick="removeButton(this)" style="padding: 10px 15px; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer;">✕</button>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center;">
+                                    <input type="text" name="button_text_start[]" value="📝 Passer une commande" 
+                                           placeholder="Texte du bouton" 
+                                           style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
+                                    <input type="text" name="button_callback_start[]" value="new_quote" 
+                                           placeholder="callback_data" 
+                                           style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 12px;" required>
+                                    <input type="number" name="button_row_start[]" value="0" min="0" 
+                                           placeholder="Rangée" 
+                                           style="width: 80px; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
+                                    <button type="button" onclick="removeButton(this)" style="padding: 10px 15px; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer;">✕</button>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <button type="button" onclick="addButton('start')" style="margin-top: 10px; padding: 8px 16px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                            + Ajouter un bouton
+                        </button>
+                    </div>
+                    <button type="submit" style="background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: 600;">
+                        💾 Enregistrer les Boutons
+                    </button>
+                </form>
+            </div>
+            
+            <script>
+                function addButton(key) {
+                    const container = document.getElementById(key + 'Buttons');
+                    const div = document.createElement('div');
+                    div.style.cssText = 'display: flex; gap: 10px; margin-bottom: 10px; align-items: center;';
+                    div.innerHTML = `
+                        <input type="text" name="button_text_${key}[]" placeholder="Texte du bouton" 
+                               style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
+                        <input type="text" name="button_callback_${key}[]" placeholder="callback_data" 
+                               style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 12px;" required>
+                        <input type="number" name="button_row_${key}[]" value="0" min="0" placeholder="Rangée" 
+                               style="width: 80px; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
+                        <button type="button" onclick="removeButton(this)" style="padding: 10px 15px; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer;">✕</button>
+                    `;
+                    container.appendChild(div);
+                }
+                function removeButton(btn) {
+                    btn.parentElement.remove();
+                }
+            </script>
         {% endif %}
     </div>
 </body>
