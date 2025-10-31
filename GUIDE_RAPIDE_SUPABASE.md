@@ -18,22 +18,50 @@
 
 ## Étape 3 : Récupérer l'URL de connexion (1 min)
 
-Une fois le projet créé :
+Une fois le projet créé, plusieurs méthodes pour trouver l'URL :
 
-1. Dans le menu de gauche, cliquez sur **"Settings"** ⚙️
-2. Cliquez sur **"Database"** dans le menu Settings
-3. Descendez jusqu'à **"Connection string"**
-4. Cliquez sur l'onglet **"URI"**
-5. Vous verrez quelque chose comme :
+### Méthode 1 : Via Settings → Database (Recommandé)
+
+1. Dans le menu de gauche, cliquez sur **"Settings"** ⚙️ (en bas du menu)
+2. Dans le menu Settings, cliquez sur **"Database"**
+3. Vous verrez plusieurs sections. Cherchez :
+   - **"Connection string"** OU
+   - **"Connection info"** OU  
+   - **"Connection pooling"**
+4. Dans cette section, cherchez un onglet **"URI"** ou **"Connection string"**
+5. Vous devriez voir quelque chose comme :
    ```
    postgresql://postgres.xxxxx:[YOUR-PASSWORD]@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
    ```
-6. **Copiez cette URL** et **remplacez `[YOUR-PASSWORD]` par votre mot de passe** (celui que vous avez créé à l'étape 2)
+6. **Copiez cette URL** et **remplacez `[YOUR-PASSWORD]` par votre mot de passe**
 
-Exemple final :
+### Méthode 2 : Via Connection Pooling (Si méthode 1 ne marche pas)
+
+1. Dans **Settings** → **Database**
+2. Cherchez la section **"Connection pooling"**
+3. Vous verrez peut-être une URL qui commence par `postgresql://postgres.xxxxx`
+4. Si vous voyez `[YOUR-PASSWORD]`, remplacez-le par votre mot de passe
+
+### Méthode 3 : Récupérer les infos séparément
+
+Si vous ne trouvez pas l'URL complète, cherchez ces informations dans Settings → Database :
+
+- **Host** : `db.xxxxx.supabase.co` (trouvable dans "Connection info" ou "Connection pooling")
+- **Port** : `5432` (ou `6543` pour connection pooling)
+- **Database** : `postgres`
+- **User** : `postgres`
+- **Password** : Le mot de passe que vous avez créé à l'étape 2
+
+Avec ces infos, on construira l'URL ensemble. 🛠️
+
+### Exemple d'URL finale :
+
+Une fois le mot de passe remplacé, ça devrait ressembler à :
 ```
 postgresql://postgres.xxxxx:MonMotDePasse123@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
 ```
+
+⚠️ **Note** : Si votre mot de passe contient des caractères spéciaux (comme `@`, `:`, `/`, `#`), il faudra peut-être l'encoder dans l'URL. Dans ce cas, dites-moi et je vous aiderai.
 
 ## Étape 4 : Ajouter sur Railway (1 min)
 
