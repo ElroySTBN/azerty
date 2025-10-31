@@ -1062,6 +1062,88 @@ DASHBOARD_TEMPLATE = '''
                 Ils persistent même après redéploiement et sont utilisés immédiatement par le bot.
             </div>
         
+        {% elif view == 'crypto' %}
+            <h2 class="section-title">₿ Gestion des Adresses Crypto</h2>
+            {% if request.args.get('success') %}
+            <div style="margin-bottom: 20px; padding: 15px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 4px; color: #155724;">
+                ✅ <strong>Adresse crypto enregistrée avec succès !</strong>
+            </div>
+            {% endif %}
+            {% if request.args.get('error') %}
+            <div style="margin-bottom: 20px; padding: 15px; background: #f8d7da; border-left: 4px solid #dc3545; border-radius: 4px; color: #721c24;">
+                ❌ <strong>Erreur :</strong> Veuillez remplir tous les champs.
+            </div>
+            {% endif %}
+            
+            <p style="margin-bottom: 20px; color: #666;">Gérez vos adresses crypto pour les paiements clients. Les adresses sont utilisées dans les messages de paiement envoyés depuis les conversations.</p>
+            
+            <!-- Formulaire pour ajouter une adresse -->
+            <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+                <h3 style="margin-bottom: 15px; color: #333; font-size: 18px;">➕ Ajouter une adresse crypto</h3>
+                <form method="POST" action="/crypto/add">
+                    <div style="display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #666;">Nom *</label>
+                            <input type="text" name="name" placeholder="Ex: Bitcoin Principal" 
+                                   style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #666;">Adresse *</label>
+                            <input type="text" name="address" placeholder="Ex: bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh" 
+                                   style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 13px;" required>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #666;">Réseau *</label>
+                            <select name="network" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
+                                <option value="">-- Sélectionner --</option>
+                                <option value="Bitcoin">Bitcoin</option>
+                                <option value="Ethereum">Ethereum</option>
+                                <option value="USDT">USDT</option>
+                                <option value="USDC">USDC</option>
+                                <option value="BNB">BNB</option>
+                                <option value="Autre">Autre</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" style="background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: 600;">
+                        ➕ Ajouter l'adresse
+                    </button>
+                </form>
+            </div>
+            
+            <!-- Liste des adresses existantes -->
+            <h3 style="margin-bottom: 15px; color: #333; font-size: 18px;">📋 Adresses enregistrées</h3>
+            {% if crypto_addresses %}
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    {% for addr in crypto_addresses %}
+                    <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; font-size: 16px; margin-bottom: 8px; color: #333;">
+                                {{ addr.name }}
+                            </div>
+                            <div style="font-family: monospace; font-size: 13px; color: #666; margin-bottom: 5px; word-break: break-all;">
+                                {{ addr.address }}
+                            </div>
+                            <div style="font-size: 13px; color: #999;">
+                                🌐 Réseau : {{ addr.network }}
+                            </div>
+                        </div>
+                        <form method="POST" action="/crypto/delete/{{ addr.id }}" style="margin-left: 20px;" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette adresse ?');">
+                            <button type="submit" style="padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                                🗑️ Supprimer
+                            </button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty">📭 Aucune adresse crypto enregistrée. Ajoutez-en une ci-dessus.</div>
+            {% endif %}
+            
+            <div style="margin-top: 20px; padding: 15px; background: #fffbea; border-left: 4px solid #ffd700; border-radius: 4px;">
+                <strong>💡 Note :</strong> Les adresses crypto sont stockées dans la base de données et persistent même après redéploiement. 
+                Vous pouvez les sélectionner lors de l'envoi de messages de paiement depuis les conversations.
+            </div>
         {% endif %}
     </div>
 </body>
