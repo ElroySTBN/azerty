@@ -786,6 +786,51 @@ def save_message(telegram_id, message, sender='client'):
     finally:
         conn.close()
 
+async def send_admin_notification(message: str, bot_instance=None):
+    """
+    Envoie une notification Telegram à l'administrateur.
+    
+    Cette fonction est préparée pour être utilisée à l'avenir pour notifier
+    l'admin des nouveaux messages, commandes, etc.
+    
+    Args:
+        message: Le message à envoyer à l'admin
+        bot_instance: Instance du bot Telegram (optionnel, sera utilisé si fourni)
+    
+    Pour activer cette fonctionnalité :
+    1. Ajoutez ADMIN_TELEGRAM_ID dans votre .env
+    2. Appelez cette fonction aux moments appropriés (nouveau message, nouvelle commande, etc.)
+    """
+    admin_telegram_id = os.getenv('ADMIN_TELEGRAM_ID')
+    
+    if not admin_telegram_id:
+        logger.debug("ADMIN_TELEGRAM_ID non configuré - notifications admin désactivées")
+        return False
+    
+    try:
+        admin_id = int(admin_telegram_id)
+        
+        # Si bot_instance est fourni, l'utiliser directement
+        if bot_instance:
+            await bot_instance.send_message(
+                chat_id=admin_id,
+                text=message,
+                parse_mode='Markdown'
+            )
+            logger.info(f"✅ Notification admin envoyée à {admin_id}")
+            return True
+        else:
+            # Sinon, on pourrait utiliser le bot global si disponible
+            # Pour l'instant, on log juste le message
+            logger.info(f"📢 Notification admin (bot non disponible) : {message}")
+            return False
+    except ValueError:
+        logger.warning(f"ADMIN_TELEGRAM_ID invalide : {admin_telegram_id}")
+        return False
+    except Exception as e:
+        logger.error(f"Erreur lors de l'envoi de la notification admin : {e}")
+        return False
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Commande /start - Affiche le message d'accueil"""
     try:

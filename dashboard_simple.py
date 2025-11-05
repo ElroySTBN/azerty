@@ -164,6 +164,57 @@ def health():
     """Endpoint de santé pour Railway"""
     return jsonify({'status': 'healthy', 'service': 'Reputalys'}), 200
 
+@app.route('/api/stats')
+@login_required
+def api_stats():
+    """API endpoint pour récupérer les statistiques en JSON"""
+    conn = None
+    try:
+        conn = _connect_db()
+        is_postgres = hasattr(conn, 'get_dsn_parameters')
+        if is_postgres and PSYCOPG2_AVAILABLE:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+        else:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        
+        # Stats globales optimisées
+        _execute(cursor, '''
+            SELECT 
+                COUNT(CASE WHEN service_type IS NOT NULL THEN 1 END) as total_orders,
+                COUNT(DISTINCT telegram_id) as total_clients,
+                (SELECT COUNT(*) FROM messages WHERE sender = 'client') as total_messages
+            FROM conversations
+        ''')
+        stats_row = cursor.fetchone()
+        
+        # Gérer les différents formats de résultats
+        if is_postgres and isinstance(stats_row, dict):
+            total_orders = stats_row.get('total_orders', 0) or 0
+            total_clients = stats_row.get('total_clients', 0) or 0
+            total_messages = stats_row.get('total_messages', 0) or 0
+        elif hasattr(stats_row, '__getitem__') and hasattr(stats_row, 'keys'):
+            total_orders = stats_row['total_orders'] or 0
+            total_clients = stats_row['total_clients'] or 0
+            total_messages = stats_row['total_messages'] or 0
+        else:
+            total_orders = (stats_row[0] if stats_row else 0) or 0
+            total_clients = (stats_row[1] if stats_row and len(stats_row) > 1 else 0) or 0
+            total_messages = (stats_row[2] if stats_row and len(stats_row) > 2 else 0) or 0
+        
+        return jsonify({
+            'total_orders': total_orders,
+            'total_clients': total_clients,
+            'total_messages': total_messages,
+            'timestamp': datetime.now().isoformat()
+        })
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -1371,6 +1422,83 @@ DASHBOARD_TEMPLATE = '''
             </div>
         {% endif %}
     </div>
+    
+    <!-- Rafraîchissement automatique pour les vues avec conversations/commandes -->
+    {% if view in ['overview', 'conversations', 'orders'] %}
+    <script>
+        (function() {
+            let refreshInterval;
+            let isPageVisible = true;
+            let lastStats = {
+                total_orders: {{ stats.total_orders }},
+                total_clients: {{ stats.total_clients }},
+                total_messages: {{ stats.total_messages }}
+            };
+            
+            // Indicateur de rafraîchissement discret
+            const refreshIndicator = document.createElement('div');
+            refreshIndicator.style.cssText = 'position: fixed; top: 10px; right: 10px; background: #667eea; color: white; padding: 8px 12px; border-radius: 6px; font-size: 12px; z-index: 1000; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.2);';
+            refreshIndicator.innerHTML = '🔄 Mise à jour...';
+            document.body.appendChild(refreshIndicator);
+            
+            // Détecter si la page est visible (pas en arrière-plan)
+            document.addEventListener('visibilitychange', function() {
+                isPageVisible = !document.hidden;
+                if (isPageVisible) {
+                    // Rafraîchir immédiatement quand la page redevient visible
+                    checkForUpdates();
+                }
+            });
+            
+            // Fonction pour vérifier les mises à jour
+            function checkForUpdates() {
+                if (!isPageVisible) return;
+                
+                fetch('/api/stats')
+                    .then(response => response.json())
+                    .then(data => {
+                        // Vérifier si les stats ont changé
+                        const hasChanges = 
+                            data.total_orders !== lastStats.total_orders ||
+                            data.total_clients !== lastStats.total_clients ||
+                            data.total_messages !== lastStats.total_messages;
+                        
+                        if (hasChanges) {
+                            // Afficher l'indicateur
+                            refreshIndicator.style.display = 'block';
+                            
+                            // Rafraîchir la page après un court délai
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 500);
+                        }
+                        
+                        lastStats = {
+                            total_orders: data.total_orders,
+                            total_clients: data.total_clients,
+                            total_messages: data.total_messages
+                        };
+                    })
+                    .catch(error => {
+                        console.error('Erreur lors de la vérification des mises à jour:', error);
+                    });
+            }
+            
+            // Démarrer le rafraîchissement automatique toutes les 12 secondes
+            refreshInterval = setInterval(checkForUpdates, 12000);
+            
+            // Vérifier aussi quand la fenêtre redevient active
+            window.addEventListener('focus', checkForUpdates);
+            
+            // Nettoyer à la fermeture
+            window.addEventListener('beforeunload', function() {
+                if (refreshInterval) {
+                    clearInterval(refreshInterval);
+                }
+            });
+        })();
+    </script>
+    {% endif %}
 </body>
 </html>
 '''
