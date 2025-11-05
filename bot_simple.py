@@ -98,6 +98,9 @@ def reload_pricing():
 BOT_MESSAGES_CACHE = {}
 BOT_BUTTONS_CACHE = {}
 
+# État de reply pour l'admin (admin_telegram_id -> conversation_id)
+admin_reply_state = {}
+
 def get_bot_message(message_key, default=""):
     """Récupère un message du bot depuis la DB (avec cache)"""
     global BOT_MESSAGES_CACHE
@@ -788,7 +791,7 @@ def save_message(telegram_id, message, sender='client'):
     finally:
         conn.close()
 
-async def send_admin_notification(message: str, bot_instance=None, context=None):
+async def send_admin_notification(message: str, bot_instance=None, context=None, conversation_id=None):
     """
     Envoie une notification Telegram à l'administrateur.
     
@@ -796,6 +799,7 @@ async def send_admin_notification(message: str, bot_instance=None, context=None)
         message: Le message à envoyer à l'admin
         bot_instance: Instance du bot Telegram (optionnel, priorité)
         context: Context Telegram (optionnel, utilise context.bot si fourni)
+        conversation_id: ID de la conversation pour ajouter un bouton de réponse (optionnel)
     """
     admin_telegram_id = os.getenv('ADMIN_TELEGRAM_ID')
     
@@ -814,10 +818,22 @@ async def send_admin_notification(message: str, bot_instance=None, context=None)
             bot_to_use = context.bot
         
         if bot_to_use:
+            # Créer des boutons inline si conversation_id est fourni
+            reply_markup = None
+            if conversation_id is not None:
+                keyboard = [
+                    [
+                        InlineKeyboardButton("💬 Répondre", callback_data=f"admin_reply_{conversation_id}"),
+                        InlineKeyboardButton("❌ Annuler", callback_data="admin_reply_cancel")
+                    ]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+            
             await bot_to_use.send_message(
                 chat_id=admin_id,
                 text=message,
-                parse_mode='Markdown'
+                parse_mode='Markdown',
+                reply_markup=reply_markup
             )
             logger.info(f"✅ Notification admin envoyée à {admin_id}")
             return True
@@ -894,6 +910,72 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     telegram_id = user.id
     
+    # Vérifier si c'est un callback admin (pour les boutons de réponse)
+    admin_telegram_id = os.getenv('ADMIN_TELEGRAM_ID')
+    is_admin = admin_telegram_id and str(telegram_id) == str(admin_telegram_id)
+    
+    data = query.data
+    
+    # Gérer les callbacks admin_reply
+    if data.startswith("admin_reply_"):
+        if not is_admin:
+            await query.answer("❌ Accès refusé. Cette fonction est réservée à l'administrateur.", show_alert=True)
+            return
+        
+        if data == "admin_reply_cancel":
+            # Annuler le mode reply
+            if telegram_id in admin_reply_state:
+                del admin_reply_state[telegram_id]
+                await query.edit_message_text(
+                    "❌ Mode réponse annulé.\n\n"
+                    "Vous pouvez continuer à utiliser `/reply [id] [message]` si besoin.",
+                    parse_mode='Markdown'
+                )
+            else:
+                await query.answer("Vous n'êtes pas en mode réponse.", show_alert=True)
+            return
+        
+        # Activer le mode reply pour une conversation spécifique
+        try:
+            conversation_id = int(data.replace("admin_reply_", ""))
+            admin_reply_state[telegram_id] = conversation_id
+            
+            # Récupérer les infos du client pour afficher un message clair
+            conn = _connect()
+            try:
+                cursor = conn.cursor()
+                _execute(cursor, 'SELECT first_name, username FROM conversations WHERE id = ?', (conversation_id,))
+                result = cursor.fetchone()
+                
+                client_info = "le client"
+                if result:
+                    client_name = result[0] if len(result) > 0 else None
+                    client_username = result[1] if len(result) > 1 else None
+                    if client_name:
+                        client_info = client_name
+                        if client_username:
+                            client_info += f" (@{client_username})"
+                
+                await query.edit_message_text(
+                    f"✅ *Mode réponse activé*\n\n"
+                    f"👤 Vous allez répondre à : {client_info}\n"
+                    f"🆔 Conversation ID : `{conversation_id}`\n\n"
+                    f"💬 *Tapez maintenant votre message...*\n\n"
+                    f"💡 Appuyez sur ❌ Annuler pour annuler.",
+                    parse_mode='Markdown',
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("❌ Annuler", callback_data="admin_reply_cancel")
+                    ]])
+                )
+            finally:
+                conn.close()
+        except ValueError:
+            await query.answer("❌ Conversation ID invalide.", show_alert=True)
+        except Exception as e:
+            logger.error(f"Erreur admin_reply callback: {e}")
+            await query.answer("❌ Erreur lors de l'activation du mode réponse.", show_alert=True)
+        return
+    
     # Initialiser la conversation si elle n'existe pas
     if telegram_id not in user_conversations:
         user_conversations[telegram_id] = {
@@ -901,8 +983,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'username': user.username,
             'first_name': user.first_name
         }
-    
-    data = query.data
     
     if data == "new_quote":
         # Démarrer le processus de qualification - Choix principal
@@ -1167,10 +1247,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📋 Service : {service_type}
 🔢 Quantité : {quantity}
 💰 Prix : {state.get('estimated_price', 'À calculer')}
-🆔 Conversation ID : `{conversation_id}`
-━━━━━━━━━━━━━━━━━━
-💬 Pour répondre : `/reply {conversation_id} votre message`"""
-            await send_admin_notification(notification_text, context=context)
+🆔 Conversation ID : `{conversation_id}`"""
+            await send_admin_notification(notification_text, context=context, conversation_id=conversation_id)
         
         final_recap = _get_recap(state)
         
@@ -1225,6 +1303,81 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     telegram_id = user.id
     message_text = update.message.text
+    
+    # Vérifier si c'est l'admin en mode reply
+    admin_telegram_id = os.getenv('ADMIN_TELEGRAM_ID')
+    is_admin = admin_telegram_id and str(telegram_id) == str(admin_telegram_id)
+    
+    if is_admin and telegram_id in admin_reply_state:
+        # L'admin est en mode reply, envoyer le message au client
+        conversation_id = admin_reply_state[telegram_id]
+        
+        try:
+            # Récupérer le telegram_id du client depuis la conversation_id
+            conn = _connect()
+            try:
+                cursor = conn.cursor()
+                _execute(cursor, 'SELECT telegram_id, first_name, username FROM conversations WHERE id = ?', (conversation_id,))
+                result = cursor.fetchone()
+                
+                if not result:
+                    await update.message.reply_text(f"❌ Conversation ID `{conversation_id}` introuvable.", parse_mode='Markdown')
+                    del admin_reply_state[telegram_id]
+                    return
+                
+                client_telegram_id = result[0]
+                client_first_name = result[1] if len(result) > 1 else None
+                client_username = result[2] if len(result) > 2 else None
+                
+                # Envoyer le message au client
+                formatted_message = f"Support 👨‍💼 : {message_text}"
+                await context.bot.send_message(
+                    chat_id=client_telegram_id,
+                    text=formatted_message,
+                    parse_mode='Markdown'
+                )
+                
+                # Sauvegarder le message en DB
+                _execute(cursor, '''
+                    INSERT INTO messages (conversation_id, telegram_id, message, sender)
+                    VALUES (?, ?, ?, ?)
+                ''', (conversation_id, client_telegram_id, message_text, 'admin'))
+                conn.commit()
+                
+                # Retirer l'admin du mode reply
+                del admin_reply_state[telegram_id]
+                
+                # Confirmer à l'admin
+                client_display = f"{client_first_name or 'Client'}"
+                if client_username:
+                    client_display += f" (@{client_username})"
+                
+                await update.message.reply_text(
+                    f"✅ *Message envoyé !*\n\n"
+                    f"👤 Client : {client_display}\n"
+                    f"🆔 Conversation ID : `{conversation_id}`\n"
+                    f"📝 Message : {message_text}",
+                    parse_mode='Markdown'
+                )
+                
+                logger.info(f"Admin reply sent via button: conv_id={conversation_id}, client_id={client_telegram_id}")
+                
+            except Exception as e:
+                conn.rollback()
+                logger.error(f"Erreur admin reply via button: {e}")
+                await update.message.reply_text(f"❌ Erreur lors de l'envoi du message : {e}")
+                # Retirer quand même du mode reply en cas d'erreur
+                if telegram_id in admin_reply_state:
+                    del admin_reply_state[telegram_id]
+            finally:
+                conn.close()
+        except Exception as e:
+            logger.error(f"Erreur admin reply: {e}")
+            await update.message.reply_text(f"❌ Une erreur est survenue : {e}")
+            if telegram_id in admin_reply_state:
+                del admin_reply_state[telegram_id]
+        
+        return  # Ne pas continuer le traitement normal du message
     
     # Sauvegarder le message
     conversation_id = save_message(telegram_id, message_text, 'client')
@@ -1424,10 +1577,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📋 Service : {service_type}
 🔢 Quantité : {quantity}
 💰 Prix : {state.get('estimated_price', 'À calculer')}
-🆔 Conversation ID : `{conversation_id}`
-━━━━━━━━━━━━━━━━━━
-💬 Pour répondre : `/reply {conversation_id} votre message`"""
-            await send_admin_notification(notification_text, context=context)
+🆔 Conversation ID : `{conversation_id}`"""
+            await send_admin_notification(notification_text, context=context, conversation_id=conversation_id)
         
         # Générer le récapitulatif final avec toutes les informations
         final_recap = _get_recap(state)
@@ -1472,10 +1623,8 @@ Vous pouvez continuer à nous écrire ici pour toute question. Notre support vou
 🆔 Conversation ID : `{conversation_id}`
 ━━━━━━━━━━━━━━━━━━
 *Message :*
-{message_preview}
-━━━━━━━━━━━━━━━━━━
-💬 Pour répondre : `/reply {conversation_id} votre message`"""
-            await send_admin_notification(notification_text, context=context)
+{message_preview}"""
+            await send_admin_notification(notification_text, context=context, conversation_id=conversation_id)
 
 async def reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Commande /reply pour répondre aux clients depuis Telegram"""
