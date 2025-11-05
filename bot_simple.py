@@ -1205,21 +1205,27 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         quantity = state.get('quantity', '?')
         service_info = get_service_price(service_type)
         
-        try:
-            qty_num = int(''.join(filter(str.isdigit, quantity)))
-            price_val = service_info.get('price', 0)
-            if price_val == 'Sur devis' or str(price_val).lower() == 'sur devis':
-                price_text = "*Sur devis* (notre équipe vous contactera)"
-            else:
-                # Convertir le prix en nombre si c'est une chaîne
-                price_num = float(price_val) if isinstance(price_val, str) and price_val.replace('.', '').replace('-', '').isdigit() else float(price_val)
-                total = qty_num * price_num
-                currency = service_info.get('currency', 'EUR')
-                price_text = f"*≈ {total} {currency}*"
-                state['estimated_price'] = f"{total} {currency}"
-        except:
-            price_text = "*À calculer* (quantité à préciser)"
-            state['estimated_price'] = "À calculer"
+        # Vérification explicite pour forum : toujours "Sur devis"
+        if service_type == 'forum':
+            price_text = "*Sur devis*"
+            state['estimated_price'] = "Sur devis"
+        else:
+            try:
+                qty_num = int(''.join(filter(str.isdigit, quantity)))
+                price_val = service_info.get('price', 0)
+                if price_val == 'Sur devis' or str(price_val).lower() == 'sur devis':
+                    price_text = "*Sur devis* (notre équipe vous contactera)"
+                    state['estimated_price'] = "Sur devis"
+                else:
+                    # Convertir le prix en nombre si c'est une chaîne
+                    price_num = float(price_val) if isinstance(price_val, str) and price_val.replace('.', '').replace('-', '').isdigit() else float(price_val)
+                    total = qty_num * price_num
+                    currency = service_info.get('currency', 'EUR')
+                    price_text = f"*≈ {total} {currency}*"
+                    state['estimated_price'] = f"{total} {currency}"
+            except:
+                price_text = "*À calculer* (quantité à préciser)"
+                state['estimated_price'] = "À calculer"
         
         # Sauvegarder en DB
         conn = _connect()
@@ -1544,22 +1550,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         quantity = state.get('quantity', '?')
         service_info = get_service_price(service_type)
         
-        # Essayer de convertir la quantité en nombre
-        try:
-            qty_num = int(''.join(filter(str.isdigit, quantity)))
-            price_val = service_info.get('price', 0)
-            if price_val == 'Sur devis' or str(price_val).lower() == 'sur devis':
-                price_text = "**Sur devis** (notre équipe vous contactera)"
-            else:
-                # Convertir le prix en nombre si c'est une chaîne
-                price_num = float(price_val) if isinstance(price_val, str) and price_val.replace('.', '').replace('-', '').isdigit() else float(price_val)
-                total = qty_num * price_num
-                currency = service_info.get('currency', 'EUR')
-                price_text = f"**≈ {total} {currency}**"
-                state['estimated_price'] = f"{total} {currency}"
-        except:
-            price_text = "**À calculer** (quantité à préciser)"
-            state['estimated_price'] = "À calculer"
+        # Vérification explicite pour forum : toujours "Sur devis"
+        if service_type == 'forum':
+            price_text = "**Sur devis**"
+            state['estimated_price'] = "Sur devis"
+        else:
+            # Essayer de convertir la quantité en nombre
+            try:
+                qty_num = int(''.join(filter(str.isdigit, quantity)))
+                price_val = service_info.get('price', 0)
+                if price_val == 'Sur devis' or str(price_val).lower() == 'sur devis':
+                    price_text = "**Sur devis** (notre équipe vous contactera)"
+                    state['estimated_price'] = "Sur devis"
+                else:
+                    # Convertir le prix en nombre si c'est une chaîne
+                    price_num = float(price_val) if isinstance(price_val, str) and price_val.replace('.', '').replace('-', '').isdigit() else float(price_val)
+                    total = qty_num * price_num
+                    currency = service_info.get('currency', 'EUR')
+                    price_text = f"**≈ {total} {currency}**"
+                    state['estimated_price'] = f"{total} {currency}"
+            except:
+                price_text = "**À calculer** (quantité à préciser)"
+                state['estimated_price'] = "À calculer"
         
         # Sauvegarder la conversation complète en DB
         conn = _connect()
