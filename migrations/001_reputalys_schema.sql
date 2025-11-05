@@ -202,7 +202,7 @@ INSERT INTO public.pricing (service_key, price, currency, name)
 VALUES 
     ('google', '18', 'EUR', 'Avis Google'),
     ('trustpilot', '16', 'EUR', 'Trustpilot'),
-    ('forum', '5', 'EUR', 'Message Forum'),
+    ('forum', 'Sur devis', '', 'Message Forum'),
     ('pagesjaunes', '15', 'EUR', 'Pages Jaunes'),
     ('autre_plateforme', '15', 'EUR', 'Autre plateforme'),
     ('suppression', 'Sur devis', '', 'Suppression de liens')

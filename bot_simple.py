@@ -32,7 +32,7 @@ if os.getenv('SUPABASE_URL') or os.getenv('SUPABASE_DB_HOST'):
 PRICING_DEFAULT = {
     'google': {'price': 18, 'currency': 'EUR', 'name': 'Avis Google'},
     'trustpilot': {'price': 16, 'currency': 'EUR', 'name': 'Trustpilot'},
-    'forum': {'price': 5, 'currency': 'EUR', 'name': 'Message Forum'},
+    'forum': {'price': 'Sur devis', 'currency': '', 'name': 'Message Forum'},
     'pagesjaunes': {'price': 15, 'currency': 'EUR', 'name': 'Pages Jaunes'},
     'autre_plateforme': {'price': 15, 'currency': 'EUR', 'name': 'Autre plateforme'},
     'suppression': {'price': 'Sur devis', 'currency': '', 'name': 'Suppression de liens'}
@@ -563,7 +563,7 @@ def init_simple_db():
             default_prices = [
                 ('google', '18', 'EUR', 'Avis Google'),
                 ('trustpilot', '16', 'EUR', 'Trustpilot'),
-                ('forum', '5', 'EUR', 'Message Forum'),
+                ('forum', 'Sur devis', '', 'Message Forum'),
                 ('pagesjaunes', '15', 'EUR', 'Pages Jaunes'),
                 ('autre_plateforme', '15', 'EUR', 'Autre plateforme'),
                 ('suppression', 'Sur devis', '', 'Suppression de liens')
@@ -734,7 +734,7 @@ N'hésitez pas si vous avez des questions !''')
             default_prices = [
                 ('google', '18', 'EUR', 'Avis Google'),
                 ('trustpilot', '16', 'EUR', 'Trustpilot'),
-                ('forum', '5', 'EUR', 'Message Forum'),
+                ('forum', 'Sur devis', '', 'Message Forum'),
                 ('pagesjaunes', '15', 'EUR', 'Pages Jaunes'),
                 ('autre_plateforme', '15', 'EUR', 'Autre plateforme'),
                 ('suppression', 'Sur devis', '', 'Suppression de liens')

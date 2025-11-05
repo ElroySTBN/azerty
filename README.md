@@ -110,7 +110,7 @@ Reputalys utilise 7 tables :
 
 - Avis Google : 18 EUR
 - Trustpilot : 16 EUR
-- Messages Forum : 5 EUR
+- Messages Forum : Sur devis
 - Pages Jaunes : 15 EUR
 - Suppression liens : Sur devis
 
