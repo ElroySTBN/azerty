@@ -938,7 +938,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Activer le mode reply pour une conversation spécifique
         try:
             conversation_id = int(data.replace("admin_reply_", ""))
-            admin_reply_state[telegram_id] = conversation_id
             
             # Récupérer les infos du client pour afficher un message clair
             conn = _connect()
@@ -956,12 +955,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         if client_username:
                             client_info += f" (@{client_username})"
                 
+                # Vérifier si l'admin était déjà en mode reply pour un autre client
+                previous_conv_id = admin_reply_state.get(telegram_id)
+                if previous_conv_id and previous_conv_id != conversation_id:
+                    status_message = f"🔄 *Client changé* - Vous répondez maintenant à : {client_info}\n"
+                else:
+                    status_message = f"✅ *Mode réponse activé*\n\n👤 Vous répondez à : {client_info}\n"
+                
+                # Mettre à jour l'état (change automatiquement si c'était un autre client)
+                admin_reply_state[telegram_id] = conversation_id
+                
                 await query.edit_message_text(
-                    f"✅ *Mode réponse activé*\n\n"
-                    f"👤 Vous allez répondre à : {client_info}\n"
+                    f"{status_message}"
                     f"🆔 Conversation ID : `{conversation_id}`\n\n"
-                    f"💬 *Tapez maintenant votre message...*\n\n"
-                    f"💡 Appuyez sur ❌ Annuler pour annuler.",
+                    f"💬 *Tapez votre message maintenant...*\n\n"
+                    f"💡 *Vous pouvez envoyer plusieurs messages à la suite*\n"
+                    f"💡 Cliquez sur ❌ Annuler pour désactiver le mode\n"
+                    f"💡 Cliquez sur 💬 Répondre d'une autre notification pour changer de client",
                     parse_mode='Markdown',
                     reply_markup=InlineKeyboardMarkup([[
                         InlineKeyboardButton("❌ Annuler", callback_data="admin_reply_cancel")
@@ -1344,10 +1354,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ''', (conversation_id, client_telegram_id, message_text, 'admin'))
                 conn.commit()
                 
-                # Retirer l'admin du mode reply
-                del admin_reply_state[telegram_id]
+                # NE PAS retirer l'admin du mode reply - le mode reste actif pour permettre plusieurs messages
+                # Le mode restera actif jusqu'à annulation explicite ou changement de client
                 
-                # Confirmer à l'admin
+                # Confirmer à l'admin avec indication que le mode reste actif
                 client_display = f"{client_first_name or 'Client'}"
                 if client_username:
                     client_display += f" (@{client_username})"
@@ -1356,7 +1366,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"✅ *Message envoyé !*\n\n"
                     f"👤 Client : {client_display}\n"
                     f"🆔 Conversation ID : `{conversation_id}`\n"
-                    f"📝 Message : {message_text}",
+                    f"📝 Message : {message_text}\n\n"
+                    f"💬 *Mode réponse actif* - Vous pouvez continuer à envoyer des messages.\n"
+                    f"💡 Cliquez sur ❌ Annuler dans la notification pour désactiver.",
                     parse_mode='Markdown'
                 )
                 
@@ -1683,6 +1695,9 @@ async def reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ''', (conversation_id, client_telegram_id, reply_message, 'admin'))
             conn.commit()
             
+            # Activer le mode reply persistant pour permettre plusieurs messages
+            admin_reply_state[telegram_id] = conversation_id
+            
             # Confirmer à l'admin
             client_display = f"{client_first_name or 'Client'}"
             if client_username:
@@ -1692,7 +1707,9 @@ async def reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"✅ *Message envoyé !*\n\n"
                 f"👤 Client : {client_display}\n"
                 f"🆔 Conversation ID : `{conversation_id}`\n"
-                f"📝 Message : {reply_message}",
+                f"📝 Message : {reply_message}\n\n"
+                f"💬 *Mode réponse activé* - Vous pouvez continuer à envoyer des messages.\n"
+                f"💡 Tapez simplement votre prochain message pour l'envoyer au même client.",
                 parse_mode='Markdown'
             )
             
