@@ -751,9 +751,10 @@ N'hésitez pas si vous avez des questions !''')
     PRICING = get_pricing()
 
 def save_message(telegram_id, message, sender='client'):
-    """Sauvegarde un message"""
+    """Sauvegarde un message et retourne le conversation_id"""
     conn = _connect()
     cursor = conn.cursor()
+    conversation_id = None
     
     try:
         # Trouver ou créer la conversation
@@ -779,6 +780,7 @@ def save_message(telegram_id, message, sender='client'):
         ''', (conversation_id, telegram_id, message, sender))
         
         conn.commit()
+        return conversation_id
     except Exception as e:
         logger.error(f"Erreur save_message: {e}")
         conn.rollback()
@@ -786,20 +788,14 @@ def save_message(telegram_id, message, sender='client'):
     finally:
         conn.close()
 
-async def send_admin_notification(message: str, bot_instance=None):
+async def send_admin_notification(message: str, bot_instance=None, context=None):
     """
     Envoie une notification Telegram à l'administrateur.
     
-    Cette fonction est préparée pour être utilisée à l'avenir pour notifier
-    l'admin des nouveaux messages, commandes, etc.
-    
     Args:
         message: Le message à envoyer à l'admin
-        bot_instance: Instance du bot Telegram (optionnel, sera utilisé si fourni)
-    
-    Pour activer cette fonctionnalité :
-    1. Ajoutez ADMIN_TELEGRAM_ID dans votre .env
-    2. Appelez cette fonction aux moments appropriés (nouveau message, nouvelle commande, etc.)
+        bot_instance: Instance du bot Telegram (optionnel, priorité)
+        context: Context Telegram (optionnel, utilise context.bot si fourni)
     """
     admin_telegram_id = os.getenv('ADMIN_TELEGRAM_ID')
     
@@ -810,9 +806,15 @@ async def send_admin_notification(message: str, bot_instance=None):
     try:
         admin_id = int(admin_telegram_id)
         
-        # Si bot_instance est fourni, l'utiliser directement
+        # Déterminer quelle instance du bot utiliser (priorité : bot_instance > context.bot)
+        bot_to_use = None
         if bot_instance:
-            await bot_instance.send_message(
+            bot_to_use = bot_instance
+        elif context and hasattr(context, 'bot'):
+            bot_to_use = context.bot
+        
+        if bot_to_use:
+            await bot_to_use.send_message(
                 chat_id=admin_id,
                 text=message,
                 parse_mode='Markdown'
@@ -820,9 +822,7 @@ async def send_admin_notification(message: str, bot_instance=None):
             logger.info(f"✅ Notification admin envoyée à {admin_id}")
             return True
         else:
-            # Sinon, on pourrait utiliser le bot global si disponible
-            # Pour l'instant, on log juste le message
-            logger.info(f"📢 Notification admin (bot non disponible) : {message}")
+            logger.warning(f"📢 Notification admin (bot non disponible) : {message}")
             return False
     except ValueError:
         logger.warning(f"ADMIN_TELEGRAM_ID invalide : {admin_telegram_id}")
@@ -867,6 +867,18 @@ Que souhaitez-vous faire aujourd'hui ?"""
         
         await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
         logger.info(f"✅ Message de bienvenue envoyé à l'utilisateur {telegram_id}")
+        
+        # Envoyer notification à l'admin
+        username_display = f"@{user.username}" if user.username else "N/A"
+        notification_text = f"""👤 *Nouvel utilisateur*
+━━━━━━━━━━━━━━━━━━
+👤 Nom : {user.first_name or 'N/A'}
+🆔 ID : `{telegram_id}`
+📱 Username : {username_display}
+━━━━━━━━━━━━━━━━━━
+💬 Pour répondre : `/reply {telegram_id} votre message`"""
+        
+        await send_admin_notification(notification_text, context=context)
     except Exception as e:
         logger.error(f"❌ Erreur dans start() : {e}", exc_info=True)
         try:
@@ -1121,6 +1133,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Sauvegarder en DB
         conn = _connect()
+        conversation_id = None
         try:
             cursor = conn.cursor()
             _execute(cursor, '''
@@ -1129,12 +1142,35 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ''', (telegram_id, state.get('username'), state.get('first_name'), 
                   service_type, quantity, state.get('link', 'Aucun'), state.get('details', 'Aucun détail supplémentaire'), state.get('estimated_price', 'À calculer')))
             conn.commit()
-            logger.info(f"Commande sauvegardée (skip_details): telegram_id={telegram_id}, service={service_type}, quantity={quantity}")
+            
+            # Récupérer l'ID de la conversation créée
+            if USE_SUPABASE:
+                cursor.execute('SELECT LASTVAL()')
+                conversation_id = cursor.fetchone()[0]
+            else:
+                conversation_id = cursor.lastrowid
+            
+            logger.info(f"Commande sauvegardée (skip_details): telegram_id={telegram_id}, service={service_type}, quantity={quantity}, conv_id={conversation_id}")
         except Exception as e:
             logger.error(f"Erreur sauvegarde commande (skip_details): {e}")
             conn.rollback()
         finally:
             conn.close()
+        
+        # Envoyer notification à l'admin
+        if conversation_id:
+            username_display = f"@{state.get('username')}" if state.get('username') else "N/A"
+            notification_text = f"""🛒 *Nouvelle commande*
+━━━━━━━━━━━━━━━━━━
+👤 Client : {state.get('first_name', 'N/A')} ({username_display})
+🆔 ID : `{telegram_id}`
+📋 Service : {service_type}
+🔢 Quantité : {quantity}
+💰 Prix : {state.get('estimated_price', 'À calculer')}
+🆔 Conversation ID : `{conversation_id}`
+━━━━━━━━━━━━━━━━━━
+💬 Pour répondre : `/reply {conversation_id} votre message`"""
+            await send_admin_notification(notification_text, context=context)
         
         final_recap = _get_recap(state)
         
@@ -1191,7 +1227,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message_text = update.message.text
     
     # Sauvegarder le message
-    save_message(telegram_id, message_text, 'client')
+    conversation_id = save_message(telegram_id, message_text, 'client')
     
     # Récupérer l'état de la conversation
     state = user_conversations.get(telegram_id, {})
@@ -1354,6 +1390,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Sauvegarder la conversation complète en DB
         conn = _connect()
+        conversation_id = None
         try:
             cursor = conn.cursor()
             _execute(cursor, '''
@@ -1362,12 +1399,35 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ''', (telegram_id, state.get('username'), state.get('first_name'), 
                   service_type, quantity, state.get('link', 'Aucun'), state.get('details', 'Aucun détail supplémentaire'), state.get('estimated_price', 'À calculer')))
             conn.commit()
-            logger.info(f"Commande sauvegardée: telegram_id={telegram_id}, service={service_type}, quantity={quantity}")
+            
+            # Récupérer l'ID de la conversation créée
+            if USE_SUPABASE:
+                cursor.execute('SELECT LASTVAL()')
+                conversation_id = cursor.fetchone()[0]
+            else:
+                conversation_id = cursor.lastrowid
+            
+            logger.info(f"Commande sauvegardée: telegram_id={telegram_id}, service={service_type}, quantity={quantity}, conv_id={conversation_id}")
         except Exception as e:
             logger.error(f"Erreur sauvegarde commande: {e}")
             conn.rollback()
         finally:
             conn.close()
+        
+        # Envoyer notification à l'admin
+        if conversation_id:
+            username_display = f"@{state.get('username')}" if state.get('username') else "N/A"
+            notification_text = f"""🛒 *Nouvelle commande*
+━━━━━━━━━━━━━━━━━━
+👤 Client : {state.get('first_name', 'N/A')} ({username_display})
+🆔 ID : `{telegram_id}`
+📋 Service : {service_type}
+🔢 Quantité : {quantity}
+💰 Prix : {state.get('estimated_price', 'À calculer')}
+🆔 Conversation ID : `{conversation_id}`
+━━━━━━━━━━━━━━━━━━
+💬 Pour répondre : `/reply {conversation_id} votre message`"""
+            await send_admin_notification(notification_text, context=context)
         
         # Générer le récapitulatif final avec toutes les informations
         final_recap = _get_recap(state)
@@ -1399,6 +1459,108 @@ Vous pouvez continuer à nous écrire ici pour toute question. Notre support vou
             "Notre équipe vous répondra très bientôt. ⏱️",
             parse_mode='Markdown'
         )
+        
+        # Envoyer notification à l'admin pour nouveau message support
+        if conversation_id:
+            username_display = f"@{user.username}" if user.username else "N/A"
+            # Limiter la longueur du message pour la notification (max 200 caractères)
+            message_preview = message_text[:200] + "..." if len(message_text) > 200 else message_text
+            notification_text = f"""💬 *Nouveau message*
+━━━━━━━━━━━━━━━━━━
+👤 De : {user.first_name or 'N/A'} ({username_display})
+🆔 ID : `{telegram_id}`
+🆔 Conversation ID : `{conversation_id}`
+━━━━━━━━━━━━━━━━━━
+*Message :*
+{message_preview}
+━━━━━━━━━━━━━━━━━━
+💬 Pour répondre : `/reply {conversation_id} votre message`"""
+            await send_admin_notification(notification_text, context=context)
+
+async def reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Commande /reply pour répondre aux clients depuis Telegram"""
+    # Vérifier que l'utilisateur est l'admin
+    admin_telegram_id = os.getenv('ADMIN_TELEGRAM_ID')
+    if not admin_telegram_id or str(update.effective_user.id) != str(admin_telegram_id):
+        await update.message.reply_text("❌ Accès refusé. Cette commande est réservée à l'administrateur.")
+        return
+    
+    # Récupérer les arguments : /reply [conversation_id] [message]
+    if not context.args or len(context.args) < 2:
+        await update.message.reply_text(
+            "❌ *Format incorrect*\n\n"
+            "Usage : `/reply [conversation_id] [votre message]`\n\n"
+            "Exemple : `/reply 42 Bonjour, votre commande est en cours de traitement.`\n\n"
+            "💡 Vous pouvez aussi utiliser `/r` comme raccourci.",
+            parse_mode='Markdown'
+        )
+        return
+    
+    try:
+        conversation_id = int(context.args[0])
+        reply_message = ' '.join(context.args[1:])
+        
+        if not reply_message:
+            await update.message.reply_text("❌ Le message ne peut pas être vide.")
+            return
+        
+        # Récupérer le telegram_id du client depuis la conversation_id
+        conn = _connect()
+        try:
+            cursor = conn.cursor()
+            _execute(cursor, 'SELECT telegram_id, first_name, username FROM conversations WHERE id = ?', (conversation_id,))
+            result = cursor.fetchone()
+            
+            if not result:
+                await update.message.reply_text(f"❌ Conversation ID `{conversation_id}` introuvable.", parse_mode='Markdown')
+                return
+            
+            client_telegram_id = result[0]
+            client_first_name = result[1] if len(result) > 1 else None
+            client_username = result[2] if len(result) > 2 else None
+            
+            # Envoyer le message au client
+            formatted_message = f"Support 👨‍💼 : {reply_message}"
+            await context.bot.send_message(
+                chat_id=client_telegram_id,
+                text=formatted_message,
+                parse_mode='Markdown'
+            )
+            
+            # Sauvegarder le message en DB
+            _execute(cursor, '''
+                INSERT INTO messages (conversation_id, telegram_id, message, sender)
+                VALUES (?, ?, ?, ?)
+            ''', (conversation_id, client_telegram_id, reply_message, 'admin'))
+            conn.commit()
+            
+            # Confirmer à l'admin
+            client_display = f"{client_first_name or 'Client'}"
+            if client_username:
+                client_display += f" (@{client_username})"
+            
+            await update.message.reply_text(
+                f"✅ *Message envoyé !*\n\n"
+                f"👤 Client : {client_display}\n"
+                f"🆔 Conversation ID : `{conversation_id}`\n"
+                f"📝 Message : {reply_message}",
+                parse_mode='Markdown'
+            )
+            
+            logger.info(f"Admin reply sent: conv_id={conversation_id}, client_id={client_telegram_id}")
+            
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Erreur reply_command: {e}")
+            await update.message.reply_text(f"❌ Erreur lors de l'envoi du message : {e}")
+        finally:
+            conn.close()
+            
+    except ValueError:
+        await update.message.reply_text("❌ Conversation ID invalide. Utilisez un nombre.")
+    except Exception as e:
+        logger.error(f"Erreur reply_command: {e}")
+        await update.message.reply_text(f"❌ Une erreur est survenue : {e}")
 
 def setup_simple_bot(token):
     """Configure le bot simple"""
@@ -1407,6 +1569,8 @@ def setup_simple_bot(token):
     app = Application.builder().token(token).build()
     
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("reply", reply_command))
+    app.add_handler(CommandHandler("r", reply_command))  # Raccourci pour /reply
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
