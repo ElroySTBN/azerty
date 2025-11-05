@@ -10,7 +10,7 @@ import sqlite3
 import os
 
 # Configuration du logger en premier
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)  # WARNING pour réduire I/O disque/réseau
 logger = logging.getLogger(__name__)
 
 # Support Supabase (PostgreSQL) - APRÈS la création du logger
@@ -22,7 +22,7 @@ if os.getenv('SUPABASE_URL') or os.getenv('SUPABASE_DB_HOST'):
         import psycopg2
         from psycopg2.extras import RealDictCursor
         USE_SUPABASE = True
-        logger.info("✅ Supabase (PostgreSQL) détecté - tentative de connexion...")
+        logger.debug("✅ Supabase (PostgreSQL) détecté - tentative de connexion...")
     except ImportError:
         logger.warning("⚠️ psycopg2-binary non installé, utilisation de SQLite")
         USE_SUPABASE = False
@@ -194,7 +194,7 @@ def reload_bot_config():
     global BOT_MESSAGES_CACHE, BOT_BUTTONS_CACHE
     BOT_MESSAGES_CACHE.clear()
     BOT_BUTTONS_CACHE.clear()
-    logger.info("✅ Cache des messages et boutons rechargé")
+    logger.debug("✅ Cache des messages et boutons rechargé")
 
 # État des conversations
 user_conversations = {}
@@ -262,7 +262,7 @@ def _resolve_db_path() -> str:
     override = os.getenv('DB_PATH')
     if override:
         os.makedirs(os.path.dirname(override) or '.', exist_ok=True)
-        logger.info(f"📁 DB_PATH override: {override}")
+        logger.debug(f"📁 DB_PATH override: {override}")
         return override
 
     # Si on est sur Railway, FORCER l'utilisation de /data
@@ -275,7 +275,7 @@ def _resolve_db_path() -> str:
             with open(test_file, 'w') as f:
                 f.write('test')
             os.remove(test_file)
-            logger.info(f"✅ Railway détecté : utilisation de /data/lebonmot_simple.db (volume persistant)")
+            logger.debug(f"✅ Railway détecté : utilisation de /data/lebonmot_simple.db (volume persistant)")
             return railway_db_path
         except Exception as e:
             logger.warning(f"⚠️ Impossible d'utiliser /data sur Railway: {e}")
@@ -293,7 +293,7 @@ def _resolve_db_path() -> str:
                 with open(test_file, 'w') as f:
                     f.write('test')
                 os.remove(test_file)
-                logger.info(f"✅ Base de données sélectionnée : {path}")
+                logger.debug(f"✅ Base de données sélectionnée : {path}")
                 return path
             except (OSError, PermissionError) as e:
                 logger.debug(f"❌ Impossible d'écrire dans {directory}: {e}")
@@ -333,7 +333,7 @@ def _connect():
                 # Si l'URL contient "pooler" ou port 6543, utiliser connection pooling (plus fiable)
                 is_pooling = 'pooler.supabase.com' in supabase_url or ':6543' in supabase_url
                 if is_pooling:
-                    logger.info("🔗 Utilisation de Supabase Connection Pooling (plus fiable)")
+                    logger.debug("🔗 Utilisation de Supabase Connection Pooling (plus fiable)")
                     # Connection pooling : pas d'options de session (mode transaction)
                     conn = psycopg2.connect(
                         supabase_url,
@@ -350,7 +350,7 @@ def _connect():
                 # Utiliser connection pooling si port 6543, sinon port standard 5432
                 is_pooling = db_port == '6543' or 'pooler' in db_host
                 if is_pooling:
-                    logger.info("🔗 Utilisation de Supabase Connection Pooling (port 6543)")
+                    logger.debug("🔗 Utilisation de Supabase Connection Pooling (port 6543)")
                     # Connection pooling : pas d'options de session (mode transaction)
                     conn = psycopg2.connect(
                         host=db_host,
@@ -391,7 +391,7 @@ def _connect():
                 cursor.close()
             
             conn.autocommit = False
-            logger.info("✅ Connexion Supabase réussie")
+            logger.debug("✅ Connexion Supabase réussie")
             return conn
         except psycopg2.OperationalError as e:
             logger.error(f"❌ Erreur connexion Supabase (réseau/timeout): {e}")
@@ -418,7 +418,7 @@ def _connect():
         conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=10.0)
         # Optimisations sûres qui ne compromettent pas la persistance
         conn.execute('PRAGMA synchronous=NORMAL')  # Bon compromis vitesse/sécurité
-        conn.execute('PRAGMA cache_size=-5000')  # 5MB de cache (raisonnable)
+        conn.execute('PRAGMA cache_size=-2000')  # 2MB de cache (optimisé pour économiser RAM)
         conn.execute('PRAGMA temp_store=MEMORY')  # Tables temporaires en RAM
         conn.execute('PRAGMA foreign_keys=ON')  # Activer les clés étrangères
         conn.execute('PRAGMA journal_mode=DELETE')  # Mode journal sûr (pas WAL qui peut poser problème)
@@ -435,7 +435,7 @@ def _connect():
         logger.warning(f"⚠️ Fallback SQLite vers : {fallback_path}")
         conn = sqlite3.connect(fallback_path, check_same_thread=False, timeout=10.0)
         conn.execute('PRAGMA synchronous=NORMAL')
-        conn.execute('PRAGMA cache_size=-5000')
+        conn.execute('PRAGMA cache_size=-2000')  # 2MB de cache (optimisé pour économiser RAM)
         conn.execute('PRAGMA temp_store=MEMORY')
         conn.execute('PRAGMA foreign_keys=ON')
         return conn
@@ -462,9 +462,9 @@ def init_simple_db():
     # Log du type de DB après connexion réelle
     is_postgres = hasattr(conn, 'get_dsn_parameters')
     if is_postgres:
-        logger.info("📁 Base de données : Supabase (PostgreSQL)")
+        logger.debug("📁 Base de données : Supabase (PostgreSQL)")
     else:
-        logger.info(f"📁 Base de données : {DB_PATH} (abs: {os.path.abspath(DB_PATH)})")
+        logger.debug(f"📁 Base de données : {DB_PATH} (abs: {os.path.abspath(DB_PATH)})")
     
     # Détecter le type de DB depuis la connexion réelle (pas le flag)
     if is_postgres:
@@ -747,7 +747,7 @@ N'hésitez pas si vous avez des questions !''')
     
     conn.commit()
     conn.close()
-    logger.info("✅ Base de données simple initialisée")
+    logger.debug("✅ Base de données simple initialisée")
     
     # Recharger les prix depuis la DB après initialisation
     global PRICING
@@ -835,7 +835,7 @@ async def send_admin_notification(message: str, bot_instance=None, context=None,
                 parse_mode='Markdown',
                 reply_markup=reply_markup
             )
-            logger.info(f"✅ Notification admin envoyée à {admin_id}")
+            logger.debug(f"✅ Notification admin envoyée à {admin_id}")
             return True
         else:
             logger.warning(f"📢 Notification admin (bot non disponible) : {message}")
@@ -850,7 +850,7 @@ async def send_admin_notification(message: str, bot_instance=None, context=None,
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Commande /start - Affiche le message d'accueil"""
     try:
-        logger.info(f"📥 Commande /start reçue de l'utilisateur {update.effective_user.id}")
+        logger.debug(f"📥 Commande /start reçue de l'utilisateur {update.effective_user.id}")
         user = update.effective_user
         telegram_id = user.id
         
@@ -882,7 +882,7 @@ Que souhaitez-vous faire aujourd'hui ?"""
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
-        logger.info(f"✅ Message de bienvenue envoyé à l'utilisateur {telegram_id}")
+        logger.debug(f"✅ Message de bienvenue envoyé à l'utilisateur {telegram_id}")
         
         # Envoyer notification à l'admin
         username_display = f"@{user.username}" if user.username else "N/A"
@@ -1131,7 +1131,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ''', (telegram_id,))
             
             orders = cursor.fetchall()
-            logger.info(f"Mes commandes: telegram_id={telegram_id}, total_conversations={total_conv}, orders_found={len(orders)}")
+            logger.debug(f"Mes commandes: telegram_id={telegram_id}, total_conversations={total_conv}, orders_found={len(orders)}")
         except Exception as e:
             logger.error(f"Erreur récupération commandes: {e}")
             orders = []
@@ -1240,7 +1240,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 conversation_id = cursor.lastrowid
             
-            logger.info(f"Commande sauvegardée (skip_details): telegram_id={telegram_id}, service={service_type}, quantity={quantity}, conv_id={conversation_id}")
+            logger.debug(f"Commande sauvegardée (skip_details): telegram_id={telegram_id}, service={service_type}, quantity={quantity}, conv_id={conversation_id}")
         except Exception as e:
             logger.error(f"Erreur sauvegarde commande (skip_details): {e}")
             conn.rollback()
@@ -1372,7 +1372,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     parse_mode='Markdown'
                 )
                 
-                logger.info(f"Admin reply sent via button: conv_id={conversation_id}, client_id={client_telegram_id}")
+                logger.debug(f"Admin reply sent via button: conv_id={conversation_id}, client_id={client_telegram_id}")
                 
             except Exception as e:
                 conn.rollback()
@@ -1572,7 +1572,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 conversation_id = cursor.lastrowid
             
-            logger.info(f"Commande sauvegardée: telegram_id={telegram_id}, service={service_type}, quantity={quantity}, conv_id={conversation_id}")
+            logger.debug(f"Commande sauvegardée: telegram_id={telegram_id}, service={service_type}, quantity={quantity}, conv_id={conversation_id}")
         except Exception as e:
             logger.error(f"Erreur sauvegarde commande: {e}")
             conn.rollback()
@@ -1713,7 +1713,7 @@ async def reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode='Markdown'
             )
             
-            logger.info(f"Admin reply sent: conv_id={conversation_id}, client_id={client_telegram_id}")
+            logger.debug(f"Admin reply sent: conv_id={conversation_id}, client_id={client_telegram_id}")
             
         except Exception as e:
             conn.rollback()
@@ -1740,7 +1740,7 @@ def setup_simple_bot(token):
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    logger.info("✅ Bot simple configuré")
+    logger.debug("✅ Bot simple configuré")
     
     return app
 

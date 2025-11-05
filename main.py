@@ -82,7 +82,7 @@ async def main():
             # Polling optimisé : intervalle raisonnable pour réduire CPU sans compromettre la réactivité
             logger.info("📡 Démarrage du polling...")
             await bot_app.updater.start_polling(
-                poll_interval=3.0,  # 3 secondes entre les polls (bon compromis)
+                poll_interval=5.0,  # 5 secondes entre les polls (optimisé pour économiser ressources)
                 timeout=20,  # Timeout plus long
                 bootstrap_retries=-1  # Retries infinis en cas d'erreur temporaire
             )

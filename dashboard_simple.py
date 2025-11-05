@@ -1484,8 +1484,8 @@ DASHBOARD_TEMPLATE = '''
                     });
             }
             
-            // Démarrer le rafraîchissement automatique toutes les 12 secondes
-            refreshInterval = setInterval(checkForUpdates, 12000);
+            // Démarrer le rafraîchissement automatique toutes les 20 secondes (optimisé pour économiser ressources)
+            refreshInterval = setInterval(checkForUpdates, 20000);
             
             // Vérifier aussi quand la fenêtre redevient active
             window.addEventListener('focus', checkForUpdates);
