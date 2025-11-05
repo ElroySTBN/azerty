@@ -1269,13 +1269,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
+        # Message final différent pour le service forum
+        if service_type == 'forum':
+            support_message = """━━━━━━━━━━━━━━━━━━
+👨‍💼 *Un membre de notre équipe va vous recontacter sous peu pour vous demander des informations complémentaires nécessaires à l'établissement de votre devis personnalisé.*
+Vous pouvez continuer à nous écrire ici pour toute question. Notre support vous répondra rapidement. 💬"""
+        else:
+            support_message = """━━━━━━━━━━━━━━━━━━
+👨‍💼 *Un membre du support vous contactera dans les plus brefs délais.*
+Vous pouvez continuer à nous écrire ici pour toute question. Notre support vous répondra rapidement. 💬"""
+        
         recap_final = f"""✅ *Devis généré avec succès !*
 
 {final_recap}💰 *Prix estimé :* {price_text}
 
-━━━━━━━━━━━━━━━━━━
-👨‍💼 *Un membre du support vous contactera dans les plus brefs délais.*
-Vous pouvez continuer à nous écrire ici pour toute question. Notre support vous répondra rapidement. 💬"""
+{support_message}"""
 
         state['step'] = 'support_mode'
         
@@ -1603,13 +1611,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
+        # Message final différent pour le service forum
+        if service_type == 'forum':
+            support_message = """━━━━━━━━━━━━━━━━━━
+👨‍💼 *Un membre de notre équipe va vous recontacter sous peu pour vous demander des informations complémentaires nécessaires à l'établissement de votre devis personnalisé.*
+Vous pouvez continuer à nous écrire ici pour toute question. Notre support vous répondra rapidement. 💬"""
+        else:
+            support_message = """━━━━━━━━━━━━━━━━━━
+👨‍💼 *Un membre du support vous contactera dans les plus brefs délais.*
+Vous pouvez continuer à nous écrire ici pour toute question. Notre support vous répondra rapidement. 💬"""
+        
         recap_final = f"""✅ *Devis généré avec succès !*
 
 {final_recap}💰 *Prix estimé :* {price_text}
 
-━━━━━━━━━━━━━━━━━━
-👨‍💼 *Un membre du support vous contactera dans les plus brefs délais.*
-Vous pouvez continuer à nous écrire ici pour toute question. Notre support vous répondra rapidement. 💬"""
+{support_message}"""
 
         state['step'] = 'support_mode'
         
