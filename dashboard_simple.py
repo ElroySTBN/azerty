@@ -851,7 +851,12 @@ LOGIN_TEMPLATE = '''
 <html>
 <head>
     <title>Login - Reputalys Admin</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#667eea">
+    <meta name="mobile-web-app-capable" content="yes">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -861,36 +866,85 @@ LOGIN_TEMPLATE = '''
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 20px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         .login-box {
             background: white;
-            padding: 40px;
+            padding: 30px 20px;
             border-radius: 12px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             width: 100%;
             max-width: 400px;
         }
-        h1 { text-align: center; margin-bottom: 30px; color: #333; }
+        h1 { 
+            text-align: center; 
+            margin-bottom: 24px; 
+            color: #333; 
+            font-size: 24px;
+            font-weight: 600;
+        }
         input {
             width: 100%;
-            padding: 12px;
-            margin-bottom: 20px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
             border: 2px solid #ddd;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 16px;
+            -webkit-appearance: none;
+            appearance: none;
+            min-height: 44px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
         }
         button {
             width: 100%;
-            padding: 12px;
+            padding: 14px 16px;
             background: #667eea;
             color: white;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             font-size: 16px;
             cursor: pointer;
+            font-weight: 600;
+            min-height: 44px;
+            transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
         }
-        button:hover { background: #5568d3; }
-        .error { color: red; text-align: center; margin-bottom: 15px; }
+        button:active { 
+            background: #5568d3; 
+        }
+        button:hover { 
+            background: #5568d3; 
+        }
+        .error { 
+            color: #dc3545; 
+            text-align: center; 
+            margin-bottom: 16px; 
+            font-size: 14px;
+            padding: 10px;
+            background: #f8d7da;
+            border-radius: 6px;
+        }
+        @media (min-width: 768px) {
+            .login-box {
+                padding: 40px;
+            }
+            h1 {
+                font-size: 28px;
+                margin-bottom: 30px;
+            }
+            input {
+                padding: 12px;
+                margin-bottom: 20px;
+            }
+            button {
+                padding: 12px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -911,34 +965,51 @@ DASHBOARD_TEMPLATE = '''
 <html>
 <head>
     <title>Dashboard - Reputalys</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#667eea">
+    <meta name="mobile-web-app-capable" content="yes">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: #f5f5f5;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 20px;
+            padding: 16px 20px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         .header-content {
-            max-width: 1200px;
-            margin: 0 auto;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
         }
-        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            flex: 1;
+            min-width: 0;
+        }
+        .container { 
+            margin: 20px auto; 
+            padding: 0 16px; 
+            max-width: 100%;
+        }
         
-        /* Stats Grid */
+        /* Stats Grid - Mobile First: 1 column */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+            grid-template-columns: 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
         }
         .stat-card {
             background: white;
@@ -948,7 +1019,7 @@ DASHBOARD_TEMPLATE = '''
             text-align: center;
         }
         .stat-value {
-            font-size: 32px;
+            font-size: 28px;
             font-weight: bold;
             color: #667eea;
             display: block;
@@ -959,25 +1030,38 @@ DASHBOARD_TEMPLATE = '''
             color: #666;
         }
         
-        /* Tabs */
+        /* Tabs - Mobile First: Horizontal scroll */
         .tabs {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             margin-bottom: 20px;
             border-bottom: 2px solid #e0e0e0;
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .tabs::-webkit-scrollbar {
+            display: none;
         }
         .tab {
-            padding: 12px 24px;
+            padding: 12px 16px;
             background: none;
             border: none;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 14px;
             color: #666;
             border-bottom: 3px solid transparent;
             transition: all 0.3s;
             text-decoration: none;
+            white-space: nowrap;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            -webkit-tap-highlight-color: transparent;
         }
-        .tab:hover { color: #667eea; }
+        .tab:active { color: #667eea; }
         .tab.active {
             color: #667eea;
             border-bottom-color: #667eea;
@@ -988,41 +1072,53 @@ DASHBOARD_TEMPLATE = '''
         .card {
             background: white;
             border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 15px;
+            padding: 16px;
+            margin-bottom: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             cursor: pointer;
             transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
         }
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        .card:active {
+            transform: scale(0.98);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
         }
         .card-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             margin-bottom: 12px;
+            gap: 12px;
+            flex-wrap: wrap;
         }
         .card-title {
             font-weight: 600;
             font-size: 16px;
+            flex: 1;
+            min-width: 0;
         }
         .badge {
-            padding: 4px 12px;
+            padding: 4px 10px;
             border-radius: 12px;
-            font-size: 12px;
+            font-size: 11px;
             background: #667eea;
             color: white;
+            white-space: nowrap;
         }
         .badge-success { background: #28a745; }
         .badge-warning { background: #ffc107; color: #333; }
-        .card-body { color: #666; font-size: 14px; line-height: 1.6; }
+        .card-body { 
+            color: #666; 
+            font-size: 14px; 
+            line-height: 1.6; 
+            word-wrap: break-word;
+        }
         .card-meta {
             display: flex;
-            gap: 15px;
-            margin-top: 10px;
-            font-size: 13px;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 12px;
+            font-size: 12px;
             color: #999;
         }
         .telegram-id {
@@ -1030,29 +1126,319 @@ DASHBOARD_TEMPLATE = '''
             background: #f0f0f0;
             padding: 2px 6px;
             border-radius: 4px;
-            font-size: 12px;
+            font-size: 11px;
+            word-break: break-all;
         }
         .btn-logout {
             background: rgba(255,255,255,0.2);
             color: white;
-            padding: 8px 16px;
+            padding: 10px 16px;
             border-radius: 6px;
             text-decoration: none;
             transition: background 0.3s;
+            font-size: 14px;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            -webkit-tap-highlight-color: transparent;
         }
-        .btn-logout:hover { background: rgba(255,255,255,0.3); }
+        .btn-logout:active { 
+            background: rgba(255,255,255,0.3); 
+        }
         .empty {
             text-align: center;
-            padding: 60px 20px;
+            padding: 40px 20px;
             color: #999;
             background: white;
             border-radius: 8px;
         }
         .section-title {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 600;
-            margin-bottom: 15px;
+            margin-bottom: 16px;
             color: #333;
+        }
+        
+        /* Search and Filter - Mobile First */
+        .search-filter-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .search-filter-container input,
+        .search-filter-container select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            -webkit-appearance: none;
+            appearance: none;
+            min-height: 44px;
+        }
+        .search-filter-container input:focus,
+        .search-filter-container select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        /* Table Wrapper - Mobile: Horizontal scroll */
+        .table-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin-bottom: 20px;
+        }
+        .pricing-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .pricing-table thead {
+            background: #f8f9fa;
+        }
+        .pricing-table th {
+            text-align: left;
+            padding: 12px;
+            font-weight: 600;
+            font-size: 14px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .pricing-table td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        .pricing-table input {
+            width: 100%;
+            padding: 8px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            min-height: 44px;
+        }
+        .pricing-table input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        /* Form - Mobile First */
+        .form-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+        .form-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #666;
+            font-size: 14px;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            -webkit-appearance: none;
+            appearance: none;
+            min-height: 44px;
+            font-family: inherit;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .form-group textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: 600;
+            min-height: 44px;
+            width: 100%;
+            transition: background 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn-primary:active {
+            background: #5568d3;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            min-height: 44px;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn-danger:active {
+            background: #c82333;
+        }
+        .alert {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .alert-success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            color: #155724;
+        }
+        .alert-error {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+        }
+        .alert-info {
+            background: #fffbea;
+            border-left: 4px solid #ffd700;
+            color: #666;
+            font-size: 13px;
+        }
+        .crypto-card {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .crypto-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .crypto-card-content {
+            flex: 1;
+            min-width: 0;
+        }
+        .crypto-card-title {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .crypto-address {
+            font-family: monospace;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+            word-break: break-all;
+        }
+        .crypto-network {
+            font-size: 13px;
+            color: #999;
+        }
+        
+        /* Tablet: 2 columns for stats, better tabs */
+        @media (min-width: 768px) {
+            .header {
+                padding: 20px;
+            }
+            .header h1 {
+                font-size: 24px;
+            }
+            .container {
+                max-width: 1200px;
+                margin: 30px auto;
+                padding: 0 20px;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 20px;
+            }
+            .stat-value {
+                font-size: 32px;
+            }
+            .tabs {
+                gap: 10px;
+            }
+            .tab {
+                padding: 12px 24px;
+                font-size: 16px;
+            }
+            .card {
+                padding: 20px;
+            }
+            .section-title {
+                font-size: 20px;
+            }
+            .search-filter-container {
+                flex-direction: row;
+                gap: 10px;
+            }
+            .search-filter-container input,
+            .search-filter-container select {
+                flex: 1;
+            }
+            .form-grid {
+                flex-direction: row;
+                gap: 15px;
+            }
+            .form-group {
+                flex: 1;
+            }
+            .btn-primary {
+                width: auto;
+                display: inline-block;
+            }
+            .crypto-card {
+                flex-direction: row;
+                align-items: center;
+            }
+        }
+        
+        /* Desktop: 3 columns for stats, full layout */
+        @media (min-width: 1024px) {
+            .header-content {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            }
+            .tab:hover {
+                color: #667eea;
+            }
+            .btn-logout:hover {
+                background: rgba(255,255,255,0.3);
+            }
         }
     </style>
 </head>
@@ -1154,19 +1540,17 @@ DASHBOARD_TEMPLATE = '''
             {% endif %}
         
         {% elif view == 'orders' %}
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 class="section-title" style="margin: 0;">🛒 Toutes les Commandes</h2>
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="searchOrders" placeholder="🔍 Rechercher..." style="padding: 8px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" onkeyup="filterOrders()">
-                    <select id="filterService" onchange="filterOrders()" style="padding: 8px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;">
-                        <option value="">Tous les services</option>
-                        <option value="google">Avis Google</option>
-                        <option value="trustpilot">Trustpilot</option>
-                        <option value="forum">Forum</option>
-                        <option value="autre_plateforme">Autre plateforme</option>
-                        <option value="suppression">Suppression</option>
-                    </select>
-                </div>
+            <h2 class="section-title">🛒 Toutes les Commandes</h2>
+            <div class="search-filter-container">
+                <input type="text" id="searchOrders" placeholder="🔍 Rechercher..." onkeyup="filterOrders()">
+                <select id="filterService" onchange="filterOrders()">
+                    <option value="">Tous les services</option>
+                    <option value="google">Avis Google</option>
+                    <option value="trustpilot">Trustpilot</option>
+                    <option value="forum">Forum</option>
+                    <option value="autre_plateforme">Autre plateforme</option>
+                    <option value="suppression">Suppression</option>
+                </select>
             </div>
             {% if orders %}
                 <div id="ordersList">
@@ -1247,54 +1631,53 @@ DASHBOARD_TEMPLATE = '''
         {% elif view == 'pricing' %}
             <h2 class="section-title">💰 Gestion des Prix</h2>
             {% if request.args.get('success') %}
-            <div style="margin-bottom: 20px; padding: 15px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 4px; color: #155724;">
+            <div class="alert alert-success">
                 ✅ <strong>Prix enregistrés avec succès !</strong> Les modifications sont actives immédiatement.
             </div>
             {% endif %}
             <p style="margin-bottom: 20px; color: #666;">Modifiez les prix de vos services. Les modifications sont enregistrées immédiatement et persistent même après redéploiement.</p>
             
-            <form method="POST" action="/pricing/update" style="background: white; padding: 20px; border-radius: 8px;">
-                <table style="width: 100%; border-collapse: collapse;">
-                    <thead>
-                        <tr style="border-bottom: 2px solid #e0e0e0;">
-                            <th style="text-align: left; padding: 12px; font-weight: 600;">Service</th>
-                            <th style="text-align: left; padding: 12px; font-weight: 600;">Nom Affiché</th>
-                            <th style="text-align: left; padding: 12px; font-weight: 600;">Prix</th>
-                            <th style="text-align: left; padding: 12px; font-weight: 600;">Devise</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% if pricing %}
-                            {% for service_key, service_info in pricing.items() %}
-                            <tr style="border-bottom: 1px solid #f0f0f0;">
-                                <td style="padding: 12px; font-weight: 500;">{{ service_key }}</td>
-                                <td style="padding: 12px;">
-                                    <input type="text" name="name_{{ service_key }}" value="{{ service_info.name }}" 
-                                           style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;" required>
-                                </td>
-                                <td style="padding: 12px;">
-                                    <input type="text" name="price_{{ service_key }}" value="{{ service_info.price }}" 
-                                           placeholder="18 ou Sur devis" 
-                                           style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 4px;" required>
-                                </td>
-                                <td style="padding: 12px;">
-                                    <input type="text" name="currency_{{ service_key }}" value="{{ service_info.currency or 'EUR' }}" 
-                                           style="width: 80px; padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
-                                </td>
+            <form method="POST" action="/pricing/update" class="form-container">
+                <div class="table-wrapper">
+                    <table class="pricing-table">
+                        <thead>
+                            <tr>
+                                <th>Service</th>
+                                <th>Nom Affiché</th>
+                                <th>Prix</th>
+                                <th>Devise</th>
                             </tr>
-                            {% endfor %}
-                        {% endif %}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {% if pricing %}
+                                {% for service_key, service_info in pricing.items() %}
+                                <tr>
+                                    <td style="font-weight: 500;">{{ service_key }}</td>
+                                    <td>
+                                        <input type="text" name="name_{{ service_key }}" value="{{ service_info.name }}" required>
+                                    </td>
+                                    <td>
+                                        <input type="text" name="price_{{ service_key }}" value="{{ service_info.price }}" 
+                                               placeholder="18 ou Sur devis" required>
+                                    </td>
+                                    <td>
+                                        <input type="text" name="currency_{{ service_key }}" value="{{ service_info.currency or 'EUR' }}">
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
                 
                 <div style="margin-top: 20px; text-align: right;">
-                    <button type="submit" style="background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: 600;">
+                    <button type="submit" class="btn-primary">
                         💾 Enregistrer les Modifications
                     </button>
                 </div>
             </form>
             
-            <div style="margin-top: 20px; padding: 15px; background: #fffbea; border-left: 4px solid #ffd700; border-radius: 4px;">
+            <div class="alert alert-info">
                 <strong>💡 Note :</strong> Les prix sont stockés dans la base de données (Supabase ou SQLite). 
                 Ils persistent même après redéploiement et sont utilisés immédiatement par le bot.
             </div>
@@ -1302,12 +1685,12 @@ DASHBOARD_TEMPLATE = '''
         {% elif view == 'crypto' %}
             <h2 class="section-title">₿ Gestion des Adresses Crypto</h2>
             {% if request.args.get('success') %}
-            <div style="margin-bottom: 20px; padding: 15px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 4px; color: #155724;">
+            <div class="alert alert-success">
                 ✅ <strong>Adresse crypto enregistrée avec succès !</strong>
             </div>
             {% endif %}
             {% if request.args.get('error') %}
-            <div style="margin-bottom: 20px; padding: 15px; background: #f8d7da; border-left: 4px solid #dc3545; border-radius: 4px; color: #721c24;">
+            <div class="alert alert-error">
                 ❌ <strong>Erreur :</strong> Veuillez remplir tous les champs.
             </div>
             {% endif %}
@@ -1315,23 +1698,22 @@ DASHBOARD_TEMPLATE = '''
             <p style="margin-bottom: 20px; color: #666;">Gérez vos adresses crypto pour les paiements clients. Les adresses sont utilisées dans les messages de paiement envoyés depuis les conversations.</p>
             
             <!-- Formulaire pour ajouter une adresse -->
-            <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+            <div class="form-container">
                 <h3 style="margin-bottom: 15px; color: #333; font-size: 18px;">➕ Ajouter une adresse crypto</h3>
                 <form method="POST" action="/crypto/add">
-                    <div style="display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 15px; margin-bottom: 15px;">
-                        <div>
-                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #666;">Nom *</label>
-                            <input type="text" name="name" placeholder="Ex: Bitcoin Principal" 
-                                   style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Nom *</label>
+                            <input type="text" name="name" placeholder="Ex: Bitcoin Principal" required>
                         </div>
-                        <div>
-                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #666;">Adresse *</label>
+                        <div class="form-group">
+                            <label>Adresse *</label>
                             <input type="text" name="address" placeholder="Ex: bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh" 
-                                   style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 13px;" required>
+                                   style="font-family: monospace; font-size: 13px;" required>
                         </div>
-                        <div>
-                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #666;">Réseau *</label>
-                            <select name="network" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;" required>
+                        <div class="form-group">
+                            <label>Réseau *</label>
+                            <select name="network" required>
                                 <option value="">-- Sélectionner --</option>
                                 <option value="Bitcoin">Bitcoin</option>
                                 <option value="Ethereum">Ethereum</option>
@@ -1342,7 +1724,7 @@ DASHBOARD_TEMPLATE = '''
                             </select>
                         </div>
                     </div>
-                    <button type="submit" style="background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: 600;">
+                    <button type="submit" class="btn-primary">
                         ➕ Ajouter l'adresse
                     </button>
                 </form>
@@ -1351,22 +1733,16 @@ DASHBOARD_TEMPLATE = '''
             <!-- Liste des adresses existantes -->
             <h3 style="margin-bottom: 15px; color: #333; font-size: 18px;">📋 Adresses enregistrées</h3>
             {% if crypto_addresses %}
-                <div style="display: flex; flex-direction: column; gap: 15px;">
+                <div style="display: flex; flex-direction: column; gap: 12px;">
                     {% for addr in crypto_addresses %}
-                    <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
-                        <div style="flex: 1;">
-                            <div style="font-weight: 600; font-size: 16px; margin-bottom: 8px; color: #333;">
-                                {{ addr.name }}
-                            </div>
-                            <div style="font-family: monospace; font-size: 13px; color: #666; margin-bottom: 5px; word-break: break-all;">
-                                {{ addr.address }}
-                            </div>
-                            <div style="font-size: 13px; color: #999;">
-                                🌐 Réseau : {{ addr.network }}
-                            </div>
+                    <div class="crypto-card">
+                        <div class="crypto-card-content">
+                            <div class="crypto-card-title">{{ addr.name }}</div>
+                            <div class="crypto-address">{{ addr.address }}</div>
+                            <div class="crypto-network">🌐 Réseau : {{ addr.network }}</div>
                         </div>
-                        <form method="POST" action="/crypto/delete/{{ addr.id }}" style="margin-left: 20px;" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette adresse ?');">
-                            <button type="submit" style="padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                        <form method="POST" action="/crypto/delete/{{ addr.id }}" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette adresse ?');">
+                            <button type="submit" class="btn-danger">
                                 🗑️ Supprimer
                             </button>
                         </form>
@@ -1377,7 +1753,7 @@ DASHBOARD_TEMPLATE = '''
                 <div class="empty">📭 Aucune adresse crypto enregistrée. Ajoutez-en une ci-dessus.</div>
             {% endif %}
             
-            <div style="margin-top: 20px; padding: 15px; background: #fffbea; border-left: 4px solid #ffd700; border-radius: 4px;">
+            <div class="alert alert-info">
                 <strong>💡 Note :</strong> Les adresses crypto sont stockées dans la base de données et persistent même après redéploiement. 
                 Vous pouvez les sélectionner lors de l'envoi de messages de paiement depuis les conversations.
             </div>
@@ -1385,13 +1761,13 @@ DASHBOARD_TEMPLATE = '''
         {% elif view == 'templates' %}
             <h2 class="section-title">📝 Gestion des Templates de Messages</h2>
             {% if request.args.get('success') %}
-            <div style="margin-bottom: 20px; padding: 15px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 4px; color: #155724;">
+            <div class="alert alert-success">
                 ✅ <strong>Templates enregistrés avec succès !</strong> Les modifications sont actives immédiatement.
             </div>
             {% endif %}
             <p style="margin-bottom: 20px; color: #666;">Modifiez les templates de messages utilisés pour communiquer avec les clients. Les variables comme [SERVICE], [QUANTITE], [PRIX], [MONTANT], [VOTRE_ADRESSE_CRYPTO], [RESEAU] seront remplacées automatiquement.</p>
             
-            <form method="POST" action="/templates/update" style="background: white; padding: 20px; border-radius: 8px;">
+            <form method="POST" action="/templates/update" class="form-container">
                 {% set template_names = {
                     'payment_crypto': '💰 Paiement Crypto',
                     'payment_received': '✅ Paiement reçu',
@@ -1400,23 +1776,23 @@ DASHBOARD_TEMPLATE = '''
                 } %}
                 
                 {% for template_key, template_name in template_names.items() %}
-                <div style="margin-bottom: 30px;">
+                <div class="form-group" style="margin-bottom: 24px;">
                     <h3 style="margin-bottom: 10px; color: #333; font-size: 18px;">{{ template_name }}</h3>
                     <textarea name="template_{{ template_key }}" 
-                              style="width: 100%; min-height: 200px; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 13px; line-height: 1.5; resize: vertical;" 
+                              style="font-family: monospace; font-size: 13px; line-height: 1.5;" 
                               required>{% if templates %}{{ templates.get(template_key, '') }}{% endif %}</textarea>
                     <p style="margin-top: 5px; font-size: 12px; color: #666;">Variables disponibles : [SERVICE], [QUANTITE], [PRIX], [MONTANT]{% if template_key == 'payment_crypto' %}, [VOTRE_ADRESSE_CRYPTO], [RESEAU]{% endif %}</p>
                 </div>
                 {% endfor %}
                 
                 <div style="margin-top: 20px; text-align: right;">
-                    <button type="submit" style="background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: 600;">
+                    <button type="submit" class="btn-primary">
                         💾 Enregistrer les Templates
                     </button>
                 </div>
             </form>
             
-            <div style="margin-top: 20px; padding: 15px; background: #fffbea; border-left: 4px solid #ffd700; border-radius: 4px;">
+            <div class="alert alert-info">
                 <strong>💡 Note :</strong> Les templates sont stockés dans la base de données (Supabase ou SQLite). 
                 Ils persistent même après redéploiement et sont utilisés immédiatement dans les conversations.
             </div>
@@ -1508,7 +1884,12 @@ CONVERSATION_TEMPLATE = '''
 <html>
 <head>
     <title>Conversation - Reputalys</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#667eea">
+    <meta name="mobile-web-app-capable" content="yes">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -1517,41 +1898,68 @@ CONVERSATION_TEMPLATE = '''
             display: flex;
             flex-direction: column;
             height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         .header {
             background: #667eea;
             color: white;
-            padding: 15px 20px;
+            padding: 12px 16px;
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+        .header h2 {
+            font-size: 16px;
+            font-weight: 600;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .back-btn {
             background: rgba(255,255,255,0.2);
             color: white;
-            padding: 8px 16px;
+            padding: 10px 16px;
             border-radius: 6px;
             text-decoration: none;
+            font-size: 14px;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .back-btn:active {
+            background: rgba(255,255,255,0.3);
         }
         .info-panel {
             background: white;
-            padding: 20px;
+            padding: 16px;
             border-bottom: 1px solid #ddd;
+            flex-shrink: 0;
         }
-        .info-row { margin: 8px 0; }
+        .info-row { 
+            margin: 8px 0; 
+            font-size: 14px;
+            word-wrap: break-word;
+        }
         .messages {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
             gap: 12px;
+            -webkit-overflow-scrolling: touch;
         }
         .message {
-            max-width: 70%;
+            max-width: 85%;
             padding: 12px 16px;
             border-radius: 12px;
             word-wrap: break-word;
+            font-size: 14px;
+            line-height: 1.5;
         }
         .message-client {
             background: #e5e5ea;
@@ -1566,44 +1974,26 @@ CONVERSATION_TEMPLATE = '''
             background: #fffbea;
             border: 1px solid #ffd700;
             align-self: center;
-            font-size: 13px;
+            font-size: 12px;
             color: #666;
+            max-width: 90%;
         }
-        .reply-form {
+        .message-time {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+        .template-section {
             background: white;
-            padding: 20px;
+            padding: 12px 16px;
             border-top: 1px solid #ddd;
-            display: flex;
-            gap: 10px;
+            flex-shrink: 0;
         }
-        .reply-form {
-            background: white;
-            padding: 20px;
-            border-top: 1px solid #ddd;
-            display: flex;
-            gap: 10px;
-        }
-        .reply-form textarea {
-            flex: 1;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            resize: none;
-            font-family: inherit;
+        .template-section-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #667eea;
             font-size: 14px;
-        }
-        .reply-form button {
-            padding: 12px 24px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            white-space: nowrap;
-        }
-        .reply-form button:hover {
-            background: #5568d3;
         }
         .template-buttons {
             display: flex;
@@ -1611,16 +2001,180 @@ CONVERSATION_TEMPLATE = '''
             flex-wrap: wrap;
         }
         .template-btn {
-            padding: 8px 16px;
+            padding: 10px 14px;
             border: none;
             border-radius: 6px;
             cursor: pointer;
             font-size: 13px;
             transition: all 0.2s;
+            min-height: 44px;
+            -webkit-tap-highlight-color: transparent;
         }
-        .template-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        .template-btn:active {
+            transform: scale(0.95);
+        }
+        .reply-form {
+            background: white;
+            padding: 16px;
+            border-top: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+        .reply-form textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            resize: none;
+            font-family: inherit;
+            font-size: 16px;
+            min-height: 100px;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        .reply-form textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .reply-form button {
+            padding: 14px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            min-height: 44px;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .reply-form button:active {
+            background: #5568d3;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .modal-title {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .modal-form-group {
+            margin-bottom: 16px;
+        }
+        .modal-form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #666;
+            font-size: 14px;
+        }
+        .modal-form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            -webkit-appearance: none;
+            appearance: none;
+            min-height: 44px;
+        }
+        .modal-form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            min-height: 44px;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .modal-btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .modal-btn-secondary:active {
+            background: #5a6268;
+        }
+        .modal-btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .modal-btn-primary:active {
+            background: #5568d3;
+        }
+        
+        /* Tablet and Desktop */
+        @media (min-width: 768px) {
+            .header {
+                padding: 15px 20px;
+            }
+            .header h2 {
+                font-size: 20px;
+            }
+            .info-panel {
+                padding: 20px;
+            }
+            .messages {
+                padding: 20px;
+            }
+            .message {
+                max-width: 70%;
+            }
+            .reply-form {
+                flex-direction: row;
+                padding: 20px;
+                gap: 10px;
+            }
+            .reply-form textarea {
+                min-height: auto;
+            }
+            .reply-form button:hover {
+                background: #5568d3;
+            }
+            .template-btn:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            }
+            .modal-content {
+                padding: 30px;
+            }
         }
     </style>
 </head>
@@ -1644,34 +2198,32 @@ CONVERSATION_TEMPLATE = '''
         {% for msg in messages %}
         <div class="message message-{{ msg.sender }}">
             {{ msg.message }}
-            <div style="font-size: 11px; opacity: 0.7; margin-top: 5px;">
+            <div class="message-time">
                 {{ msg.created_at }}
             </div>
         </div>
         {% endfor %}
     </div>
     
-            <div style="background: white; padding: 15px; border-top: 1px solid #ddd;">
-        <div style="margin-bottom: 15px;">
-            <div style="font-weight: 600; margin-bottom: 10px; color: #667eea;">📝 Templates rapides :</div>
-            <div class="template-buttons">
-                <button type="button" onclick="showCryptoModal()" class="template-btn" style="background: #667eea; color: white;">💰 Paiement Crypto</button>
-                <button type="button" onclick="loadTemplate('payment_received')" class="template-btn" style="background: #28a745; color: white;">✅ Paiement reçu</button>
-                <button type="button" onclick="loadTemplate('order_confirmed')" class="template-btn" style="background: #17a2b8; color: white;">✅ Commande confirmée</button>
-                <button type="button" onclick="loadTemplate('follow_up')" class="template-btn" style="background: #ffc107; color: #333;">👋 Suivi</button>
-            </div>
+    <div class="template-section">
+        <div class="template-section-title">📝 Templates rapides :</div>
+        <div class="template-buttons">
+            <button type="button" onclick="showCryptoModal()" class="template-btn" style="background: #667eea; color: white;">💰 Paiement Crypto</button>
+            <button type="button" onclick="loadTemplate('payment_received')" class="template-btn" style="background: #28a745; color: white;">✅ Paiement reçu</button>
+            <button type="button" onclick="loadTemplate('order_confirmed')" class="template-btn" style="background: #17a2b8; color: white;">✅ Commande confirmée</button>
+            <button type="button" onclick="loadTemplate('follow_up')" class="template-btn" style="background: #ffc107; color: #333;">👋 Suivi</button>
         </div>
     </div>
     
     <!-- Modal pour choisir l'adresse crypto -->
-    <div id="cryptoModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-        <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
-            <h3 style="margin-bottom: 20px; color: #333;">₿ Choisir une adresse crypto</h3>
+    <div id="cryptoModal" class="modal">
+        <div class="modal-content">
+            <h3 class="modal-title">₿ Choisir une adresse crypto</h3>
             <form id="cryptoForm" onsubmit="return loadCryptoTemplate(event);">
                 <input type="hidden" name="template_id" value="payment_crypto">
-                <div style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #666;">Sélectionnez une adresse :</label>
-                    <select name="crypto_address_id" id="cryptoAddressSelect" required style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;">
+                <div class="modal-form-group">
+                    <label>Sélectionnez une adresse :</label>
+                    <select name="crypto_address_id" id="cryptoAddressSelect" required>
                         <option value="">-- Choisir une adresse --</option>
                         {% for addr in crypto_addresses %}
                         <option value="{{ addr.id }}">{{ addr.name }} ({{ addr.network }})</option>
@@ -1683,11 +2235,11 @@ CONVERSATION_TEMPLATE = '''
                     </p>
                     {% endif %}
                 </div>
-                <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button type="button" onclick="closeCryptoModal()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                <div class="modal-actions">
+                    <button type="button" onclick="closeCryptoModal()" class="modal-btn modal-btn-secondary">
                         Annuler
                     </button>
-                    <button type="submit" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    <button type="submit" class="modal-btn modal-btn-primary">
                         Utiliser ce template
                     </button>
                 </div>
@@ -1770,11 +2322,11 @@ CONVERSATION_TEMPLATE = '''
         }
         
         function showCryptoModal() {
-            document.getElementById('cryptoModal').style.display = 'flex';
+            document.getElementById('cryptoModal').classList.add('active');
         }
         
         function closeCryptoModal() {
-            document.getElementById('cryptoModal').style.display = 'none';
+            document.getElementById('cryptoModal').classList.remove('active');
         }
         
         // Fermer le modal en cliquant à l'extérieur
