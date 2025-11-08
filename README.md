@@ -48,12 +48,18 @@ Dashboard : `http://localhost:8081`
 
 1. Créez un nouveau projet Railway
 2. Connectez votre repo GitHub
-3. Ajoutez les variables d'environnement :
+3. **⚠️ IMPORTANT - Volume Persistant (si SQLite) :**
+   - Allez dans votre service Railway
+   - Cliquez sur "Volumes" dans le menu latéral
+   - Créez un volume persistant monté sur `/data`
+   - Cela permet de conserver les données SQLite entre les redéploiements
+   - **SANS volume persistant, vos données seront PERDUES à chaque redéploiement !**
+4. Ajoutez les variables d'environnement :
    - `CLIENT_BOT_TOKEN` (obligatoire)
    - `ADMIN_PASSWORD` (obligatoire)
-   - Variables Supabase si vous utilisez PostgreSQL (optionnel)
+   - Variables Supabase si vous utilisez PostgreSQL (optionnel, mais recommandé)
    - `ADMIN_TELEGRAM_ID` (optionnel, pour les notifications)
-4. Railway déploie automatiquement !
+5. Railway déploie automatiquement !
 
 ## 🗄️ Configuration Base de Données
 
@@ -72,14 +78,24 @@ Pour utiliser Supabase :
    - ⚠️ **ATTENTION** : Cette opération supprime définitivement les tables RaiseDesk
 
 3. **Configurer les variables d'environnement** :
-   ```env
-   SUPABASE_URL=votre_url_supabase
-   SUPABASE_DB_HOST=votre_host
-   SUPABASE_DB_NAME=votre_db_name
-   SUPABASE_DB_USER=votre_user
-   SUPABASE_DB_PASSWORD=votre_password
-   SUPABASE_DB_PORT=5432
-   ```
+   - **Option A : Utiliser SUPABASE_URL (recommandé)** :
+     ```env
+     SUPABASE_URL=postgresql://postgres:[PASSWORD]@db.xxxxx.supabase.co:5432/postgres
+     ```
+     ⚠️ **IMPORTANT** : Utilisez l'URL de connexion **DIRECTE** (port 5432) et non le pooler (port 6543)
+     - Dans Supabase Dashboard → Project Settings → Database
+     - Sélectionnez "Connection string" (pas "URI" avec pooler)
+     - Utilisez cette URL dans `SUPABASE_URL`
+   
+   - **Option B : Utiliser les variables séparées** :
+     ```env
+     SUPABASE_DB_HOST=db.xxxxx.supabase.co
+     SUPABASE_DB_NAME=postgres
+     SUPABASE_DB_USER=postgres
+     SUPABASE_DB_PASSWORD=votre_mot_de_passe
+     SUPABASE_DB_PORT=5432
+     ```
+     ⚠️ **IMPORTANT** : Utilisez le port **5432** (direct) et non **6543** (pooler) pour éviter les timeouts
 
 ### Tables de la base de données
 

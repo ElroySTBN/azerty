@@ -312,100 +312,217 @@ DB_PATH = _resolve_db_path()
 
 def _connect():
     """Connexion à la base de données (Supabase PostgreSQL ou SQLite)
-    Système robuste avec timeout et fallback automatique vers SQLite"""
+    Système robuste avec timeout augmenté, retries et fallback automatique vers SQLite"""
     global USE_SUPABASE, SUPABASE_FAILED
     # Essayer Supabase si configuré et pas déjà échoué
     if USE_SUPABASE and not SUPABASE_FAILED:
-        try:
-            supabase_url = os.getenv('SUPABASE_URL')
-            # Format: postgresql://user:password@host:port/database
-            # Ou utiliser les variables séparées
-            db_host = os.getenv('SUPABASE_DB_HOST')
-            db_port = os.getenv('SUPABASE_DB_PORT', '5432')
-            db_name = os.getenv('SUPABASE_DB_NAME')
-            db_user = os.getenv('SUPABASE_DB_USER')
-            db_password = os.getenv('SUPABASE_DB_PASSWORD')
-            
-            # Timeout de connexion (5 secondes) pour éviter les blocages
-            connect_timeout = 5
-            
-            if supabase_url:
-                # Si l'URL contient "pooler" ou port 6543, utiliser connection pooling (plus fiable)
-                is_pooling = 'pooler.supabase.com' in supabase_url or ':6543' in supabase_url
-                if is_pooling:
-                    logger.debug("🔗 Utilisation de Supabase Connection Pooling (plus fiable)")
-                    # Connection pooling : pas d'options de session (mode transaction)
-                    conn = psycopg2.connect(
-                        supabase_url,
-                        connect_timeout=connect_timeout
-                    )
+        import time
+        max_retries = 3
+        retry_delay = 3  # secondes entre les retries
+        
+        for attempt in range(max_retries):
+            try:
+                supabase_url = os.getenv('SUPABASE_URL')
+                # Format: postgresql://user:password@host:port/database
+                # Ou utiliser les variables séparées
+                db_host = os.getenv('SUPABASE_DB_HOST')
+                db_port = os.getenv('SUPABASE_DB_PORT', '5432')
+                db_name = os.getenv('SUPABASE_DB_NAME')
+                db_user = os.getenv('SUPABASE_DB_USER')
+                db_password = os.getenv('SUPABASE_DB_PASSWORD')
+                
+                # Timeout de connexion augmenté (30 secondes au lieu de 5)
+                connect_timeout = 30
+                
+                if supabase_url:
+                    # Détecter si l'URL utilise le pooler
+                    is_pooling = 'pooler.supabase.com' in supabase_url or ':6543' in supabase_url
+                    
+                    if attempt > 0:
+                        logger.info(f"🔄 Tentative {attempt + 1}/{max_retries} de connexion Supabase...")
+                    
+                    # Si c'est un pooler et première tentative, essayer d'abord le port direct
+                    urls_to_try = []
+                    if is_pooling and attempt == 0:
+                        # Essayer d'abord avec port 5432 (direct), puis 6543 (pooler)
+                        url_direct = supabase_url.replace(':6543', ':5432')
+                        urls_to_try = [url_direct, supabase_url]
+                        logger.debug(f"🔄 Pooler détecté, test port direct 5432 puis pooler 6543")
+                    else:
+                        urls_to_try = [supabase_url]
+                    
+                    conn = None
+                    last_error = None
+                    
+                    for test_url in urls_to_try:
+                        try:
+                            if len(urls_to_try) > 1:
+                                is_test_pooling = ':6543' in test_url or 'pooler.supabase.com' in test_url
+                                logger.debug(f"🔄 Test URL: port {'6543 (pooler)' if is_test_pooling else '5432 (direct)'}")
+                            
+                            # Connection pooling : pas d'options de session (mode transaction)
+                            # Connexion directe : peut utiliser options de session
+                            is_test_pooling = ':6543' in test_url or 'pooler.supabase.com' in test_url
+                            
+                            conn_params = {
+                                'connect_timeout': connect_timeout,
+                                'keepalives': 1,
+                                'keepalives_idle': 30,
+                                'keepalives_interval': 10,
+                                'keepalives_count': 5
+                            }
+                            
+                            if not is_test_pooling:
+                                # Ajouter options de session pour connexion directe
+                                conn_params['options'] = '-c statement_timeout=30000'  # 30 secondes
+                            
+                            # Pour psycopg2, on peut passer l'URL directement
+                            conn = psycopg2.connect(test_url, **conn_params)
+                            
+                            if len(urls_to_try) > 1:
+                                logger.info(f"✅ Connexion réussie avec port {'direct (5432)' if not is_test_pooling else 'pooler (6543)'}")
+                            break
+                            
+                        except Exception as e:
+                            last_error = e
+                            if len(urls_to_try) > 1:
+                                logger.debug(f"❌ Échec avec cette URL, essai suivant...")
+                            continue
+                    
+                    if conn is None:
+                        raise last_error if last_error else Exception("Impossible de se connecter à Supabase")
+                    
+                elif db_host and db_name and db_user and db_password:
+                    # Détecter si c'est un pooler
+                    is_pooling = db_port == '6543' or 'pooler' in db_host
+                    
+                    if attempt > 0:
+                        logger.info(f"🔄 Tentative {attempt + 1}/{max_retries} de connexion Supabase...")
+                    
+                    # Si c'est un pooler et que c'est la première tentative, essayer aussi le port direct
+                    ports_to_try = []
+                    if is_pooling and attempt == 0:
+                        # Essayer d'abord le port direct, puis le pooler
+                        # Extraire le host direct depuis le pooler
+                        if 'pooler' in db_host:
+                            # Convertir pooler.supabase.com en db.xxx.supabase.co
+                            # Le format est généralement: aws-X-region.pooler.supabase.com
+                            # On essaie de le convertir en: db.xxxxx.supabase.co
+                            # Pour l'instant, on essaie juste les deux ports sur le même host
+                            logger.debug("🔄 Essai port direct 5432 avant pooler 6543")
+                            ports_to_try = [
+                                (db_host.replace('pooler', 'db').replace('.com', '.co'), '5432'),
+                                (db_host, '6543')
+                            ]
+                        else:
+                            ports_to_try = [(db_host, '5432'), (db_host, '6543')]
+                    else:
+                        ports_to_try = [(db_host, db_port)]
+                    
+                    conn = None
+                    last_error = None
+                    
+                    for try_host, try_port in ports_to_try:
+                        try:
+                            if len(ports_to_try) > 1:
+                                logger.debug(f"🔄 Tentative connexion à {try_host}:{try_port}")
+                            
+                            conn_params = {
+                                'host': try_host,
+                                'port': try_port,
+                                'database': db_name,
+                                'user': db_user,
+                                'password': db_password,
+                                'connect_timeout': connect_timeout,
+                                'keepalives': 1,
+                                'keepalives_idle': 30,
+                                'keepalives_interval': 10,
+                                'keepalives_count': 5
+                            }
+                            
+                            # Ne pas ajouter options pour pooler (port 6543)
+                            if try_port != '6543':
+                                conn_params['options'] = '-c statement_timeout=30000'
+                            
+                            conn = psycopg2.connect(**conn_params)
+                            logger.debug(f"✅ Connexion réussie à {try_host}:{try_port}")
+                            break
+                        except Exception as e:
+                            last_error = e
+                            if len(ports_to_try) > 1:
+                                logger.debug(f"❌ Échec {try_host}:{try_port}: {e}")
+                            continue
+                    
+                    if conn is None:
+                        raise last_error if last_error else Exception("Impossible de se connecter à Supabase")
+                        
                 else:
-                    # Connexion directe : peut utiliser options de session
-                    conn = psycopg2.connect(
-                        supabase_url,
-                        connect_timeout=connect_timeout,
-                        options='-c statement_timeout=10000'  # Timeout de requête : 10 secondes
-                    )
-            elif db_host and db_name and db_user and db_password:
-                # Utiliser connection pooling si port 6543, sinon port standard 5432
-                is_pooling = db_port == '6543' or 'pooler' in db_host
-                if is_pooling:
-                    logger.debug("🔗 Utilisation de Supabase Connection Pooling (port 6543)")
-                    # Connection pooling : pas d'options de session (mode transaction)
-                    conn = psycopg2.connect(
-                        host=db_host,
-                        port=db_port,
-                        database=db_name,
-                        user=db_user,
-                        password=db_password,
-                        connect_timeout=connect_timeout
-                    )
+                    raise ValueError("Variables Supabase manquantes")
+                
+                # Tester la connexion (uniquement pour connexions directes)
+                is_pooling_connection = (
+                    (supabase_url and ('pooler.supabase.com' in supabase_url or ':6543' in supabase_url)) or
+                    (db_host and ('pooler' in db_host or db_port == '6543'))
+                )
+                
+                if not is_pooling_connection:
+                    # Tester la connexion pour les connexions directes
+                    cursor = conn.cursor()
+                    cursor.execute('SELECT 1')
+                    cursor.close()
+                
+                conn.autocommit = False
+                logger.info("✅ Connexion Supabase réussie et testée")
+                return conn
+                
+            except psycopg2.OperationalError as e:
+                error_msg = str(e).lower()
+                is_timeout = 'timeout' in error_msg or 'timed out' in error_msg
+                
+                if is_timeout:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"⏱️ Timeout connexion Supabase (tentative {attempt + 1}/{max_retries}), retry dans {retry_delay}s...")
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        logger.error(f"❌ Timeout connexion Supabase après {max_retries} tentatives: {e}")
+                        logger.warning("⚠️ Fallback vers SQLite - timeout connexion Supabase")
                 else:
-                    # Connexion directe : peut utiliser options de session
-                    conn = psycopg2.connect(
-                        host=db_host,
-                        port=db_port,
-                        database=db_name,
-                        user=db_user,
-                        password=db_password,
-                        connect_timeout=connect_timeout,
-                        options='-c statement_timeout=10000'
-                    )
-            else:
-                raise ValueError("Variables Supabase manquantes")
-            
-            # Pour connection pooling (transaction mode), ne pas tester avec SELECT
-            # car cela peut causer "set_session cannot be used inside a transaction"
-            # La connexion elle-même est suffisante pour valider
-            
-            # Détecter si c'est du pooling
-            is_pooling_connection = (
-                (supabase_url and ('pooler.supabase.com' in supabase_url or ':6543' in supabase_url)) or
-                (db_host and ('pooler' in db_host or db_port == '6543'))
-            )
-            
-            if not is_pooling_connection:
-                # Seulement tester pour connexions directes (pas pooling)
-                cursor = conn.cursor()
-                cursor.execute('SELECT 1')
-                cursor.close()
-            
-            conn.autocommit = False
-            logger.debug("✅ Connexion Supabase réussie")
-            return conn
-        except psycopg2.OperationalError as e:
-            logger.error(f"❌ Erreur connexion Supabase (réseau/timeout): {e}")
-            logger.warning("⚠️ Fallback vers SQLite - connexion Supabase échouée")
-            # Désactiver Supabase pour éviter de réessayer à chaque requête
-            SUPABASE_FAILED = True
-            USE_SUPABASE = False
-            # Continuer avec SQLite ci-dessous
-        except Exception as e:
-            logger.error(f"❌ Erreur connexion Supabase (autre): {e}")
-            logger.warning("⚠️ Fallback vers SQLite - connexion Supabase échouée")
-            SUPABASE_FAILED = True
-            USE_SUPABASE = False
-            # Continuer avec SQLite ci-dessous
+                    # Erreur réseau autre que timeout
+                    logger.error(f"❌ Erreur connexion Supabase (réseau): {e}")
+                    if attempt < max_retries - 1:
+                        logger.warning(f"🔄 Retry dans {retry_delay}s...")
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        logger.warning("⚠️ Fallback vers SQLite - erreur réseau Supabase")
+                        
+            except Exception as e:
+                logger.error(f"❌ Erreur connexion Supabase (autre): {e}")
+                if attempt < max_retries - 1:
+                    logger.warning(f"🔄 Retry dans {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    logger.warning("⚠️ Fallback vers SQLite - erreur connexion Supabase")
+        
+        # Toutes les tentatives ont échoué
+        SUPABASE_FAILED = True
+        USE_SUPABASE = False
+        
+        # Vérifier si c'est un problème de pooler
+        supabase_url = os.getenv('SUPABASE_URL', '')
+        is_pooler_url = 'pooler.supabase.com' in supabase_url or ':6543' in supabase_url
+        
+        if is_pooler_url:
+            logger.error("❌ Impossible de se connecter à Supabase après toutes les tentatives")
+            logger.error("💡 CONSEIL: Votre URL utilise le pooler (port 6543) qui peut causer des timeouts.")
+            logger.error("   Utilisez l'URL de connexion DIRECTE (port 5432) depuis Supabase Dashboard:")
+            logger.error("   Project Settings → Database → Connection string → Session mode (direct)")
+            logger.error("   Remplacez SUPABASE_URL sur Railway par cette URL directe.")
+        else:
+            logger.error("❌ Impossible de se connecter à Supabase après toutes les tentatives")
+            logger.error("💡 Vérifiez vos identifiants Supabase et que la base de données est accessible.")
     
     # Connexion SQLite (fallback ou si Supabase non configuré)
     # Système robuste avec retry et création automatique du répertoire
